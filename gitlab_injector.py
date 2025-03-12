@@ -22,17 +22,29 @@ class GitLabInjector:
     Class to handle the creation of GitLab structures from YAML definitions.
     """
 
-    def __init__(self, gitlab_url: str, private_token: str):
+    def __init__(self, gitlab_url: str, private_token: str, parent_group_path: Optional[str] = None):
         """
         Initialize with GitLab connection parameters.
         
         Args:
             gitlab_url: URL of the GitLab instance
             private_token: Personal Access Token with API access
+            parent_group_path: Optional path to parent group where top-level groups should be created
         """
         self.gl = gitlab.Gitlab(url=gitlab_url, private_token=private_token)
         self.gl.auth()
         logger.info(f"Connected to GitLab as {self.gl.user.username}")
+        
+        # Store parent group ID if provided
+        self.parent_group_id = None
+        if parent_group_path:
+            try:
+                parent_group = self.gl.groups.get(parent_group_path)
+                self.parent_group_id = parent_group.id
+                logger.info(f"Using parent group: {parent_group_path} (ID: {self.parent_group_id})")
+            except gitlab.exceptions.GitlabGetError:
+                logger.error(f"Parent group not found: {parent_group_path}")
+                sys.exit(1)
         
         # ID mappings to track created entities
         self.label_id_map = {}  # Maps YAML label IDs to GitLab label IDs
@@ -68,7 +80,7 @@ class GitLabInjector:
         
             # Process top-level groups
             for group_data in data.get('groups', []):
-                self.process_group(group_data)
+                self.process_group(group_data, self.parent_group_id)
         
             # Process relationships (after all entities are created)
             logger.info("Creating relationships between entities...")
@@ -134,21 +146,21 @@ class GitLabInjector:
             # Store group path for later reference
             self.group_path_map[group_name] = group.full_path
             
-            # Process labels at group level
-            for label_data in group_data.get('labels', []):
-                self.process_label(label_data, group)
-            
-            # Process epics at group level (only available with GitLab Premium/Ultimate)
-            for epic_data in group_data.get('epics', []):
-                self.process_epic(epic_data, group)
-            
-            # Process projects
-            for project_data in group_data.get('projects', []):
-                self.process_project(project_data, group)
-            
-            # Process subgroups (recursive)
-            for subgroup_data in group_data.get('subgroups', []):
-                self.process_group(subgroup_data, group.id)
+            ## Process labels at group level
+            #for label_data in group_data.get('labels', []):
+            #    self.process_label(label_data, group)
+            #
+            ## Process epics at group level (only available with GitLab Premium/Ultimate)
+            #for epic_data in group_data.get('epics', []):
+            #    self.process_epic(epic_data, group)
+            #
+            ## Process projects
+            #for project_data in group_data.get('projects', []):
+            #    self.process_project(project_data, group)
+            #
+            ## Process subgroups (recursive)
+            #for subgroup_data in group_data.get('subgroups', []):
+            #    self.process_group(subgroup_data, group.id)
             
             return group.id
             
@@ -571,6 +583,7 @@ def main():
     parser.add_argument('--config', required=True, help='Path to YAML configuration file')
     parser.add_argument('--token', required=True, help='GitLab personal access token')
     parser.add_argument('--url', required=True, help='GitLab URL (e.g., https://gitlab.example.com)')
+    parser.add_argument('--group', help='Parent group path where top-level groups should be created (e.g., "group/subgroup")')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     
     args = parser.parse_args()
@@ -579,7 +592,7 @@ def main():
         logger.setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled")
     
-    creator = GitLabInjector(gitlab_url=args.url, private_token=args.token)
+    creator = GitLabInjector(gitlab_url=args.url, private_token=args.token, parent_group_path=args.group)
     creator.process_yaml(args.config)
 
 if __name__ == '__main__':
