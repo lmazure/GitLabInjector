@@ -1,0 +1,77 @@
+groups:
+  - name: "Group 1"
+    description: "Description of Group 1"
+    labels:
+      - id: "label1"  # Unique identifier within this context
+        name: "Bug"
+        description: "Bug description"
+        color: "#FF0000"
+      - id: "label2"
+        name: "Feature"
+        description: "Feature description"
+        color: "#00FF00"
+    epics:
+      - id: "epic1"  # Unique identifier
+        title: "Epic 1"
+        description: "Description of Epic 1"
+        state: "opened"
+        parent_epic_id: null  # null for top-level epics
+        label_ids: ["label1", "label2"]
+      - id: "epic2"
+        title: "Epic 2"
+        description: "Description of Epic 2"
+        state: "opened"
+        parent_epic_id: "epic1"  # Reference to parent epic ID
+        label_ids: ["label2"]
+    projects:
+      - name: "Project 1"
+        description: "Description of Project 1"
+        issues:
+          - id: "issue1"
+            title: "Issue 1"
+            description: "Description of Issue 1"
+            state: "opened"
+            parent_epic_id: "epic1"  # Reference to epic ID
+            label_ids: ["label1"]
+          - id: "issue2"
+            title: "Issue 2"
+            description: "Description of Issue 2"
+            state: "closed"
+            parent_epic_id: "epic2"
+            label_ids: ["label1", "label2"]
+      - name: "Project 2"
+        description: "Description of Project 2"
+        issues: []
+    subgroups:
+      - name: "Subgroup 11"
+        description: "Description of Subgroup 11"
+        labels:
+          - id: "label111"
+            name: "Priority High"
+            description: "High priority"
+            color: "#0000FF"
+          - id: "label112"
+            name: "Documentation"
+            description: "Documentation related"
+            color: "#FF00FF"
+        subgroups:
+          - name: "Subgroup 111"
+            description: "Description of Subgroup 111"
+            labels:
+              - id: "label1111"
+                name: "Security"
+                description: "Security related"
+                color: "#00FFFF"
+              - id: "label1112"
+                name: "UI"
+                description: "User interface"
+                color: "#FFFF00"
+          - name: "Subgroup 112"
+            description: "Description of Subgroup 112"
+            labels: []
+      - name: "Subgroup 12"
+        description: "Description of Subgroup 12"
+        labels: []
+  - name: "Group 2"
+    description: "Description of Group 2"
+    # ... similar structure as Group 1
