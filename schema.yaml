@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GitLab Group Structure",
+  "description": "Schema for GitLab group structure definition",
+  "type": "object",
+  "required": ["groups"],
+  "properties": {
+    "groups": {
+      "type": "array",
+      "description": "List of top-level groups",
+      "items": {
+        "$ref": "#/definitions/group"
+      }
+    }
+  },
+  "definitions": {
+    "group": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the group"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the group"
+        },
+        "labels": {
+          "type": "array",
+          "description": "List of labels",
+          "items": {
+            "$ref": "#/definitions/label"
+          }
+        },
+        "epics": {
+          "type": "array",
+          "description": "List of epics",
+          "items": {
+            "$ref": "#/definitions/epic"
+          }
+        },
+        "projects": {
+          "type": "array",
+          "description": "List of projects",
+          "items": {
+            "$ref": "#/definitions/project"
+          }
+        },
+        "subgroups": {
+          "type": "array",
+          "description": "List of subgroups",
+          "items": {
+            "$ref": "#/definitions/group"
+          }
+        }
+      }
+    },
+    "label": {
+      "type": "object",
+      "required": ["id", "name", "description", "color"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the label within this YAML"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the label"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the label"
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex color code (e.g., '#FF0000')",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      }
+    },
+    "epic": {
+      "type": "object",
+      "required": ["id", "title", "description", "state"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the epic within this YAML"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the epic"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the epic"
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the epic",
+          "enum": ["opened", "closed"]
+        },
+        "parent_epic_id": {
+          "type": ["string", "null"],
+          "description": "ID of parent epic, null if top-level"
+        },
+        "label_ids": {
+          "type": "array",
+          "description": "List of label IDs to apply to this epic",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the project"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the project"
+        },
+        "issues": {
+          "type": "array",
+          "description": "List of issues",
+          "items": {
+            "$ref": "#/definitions/issue"
+          }
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "required": ["id", "title", "description", "state"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the issue within this YAML"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the issue"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the issue"
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the issue",
+          "enum": ["opened", "closed"]
+        },
+        "parent_epic_id": {
+          "type": ["string", "null"],
+          "description": "ID of parent epic"
+        },
+        "label_ids": {
+          "type": "array",
+          "description": "List of label IDs to apply to this issue",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

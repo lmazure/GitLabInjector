@@ -2,10 +2,12 @@ import argparse
 import logging
 import sys
 import time
+import os
 from typing import Dict, List, Optional, Any, Tuple
 
 import gitlab
 import yaml
+import jsonschema
 
 # Configure logging
 logging.basicConfig(
@@ -48,19 +50,32 @@ class GitLabInjector:
         try:
             with open(yaml_file, 'r') as f:
                 data = yaml.safe_load(f)
-            
+        
             logger.info(f"Successfully loaded YAML file: {yaml_file}")
-            
+        
+            # Load and validate against schema
+            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'schema.yaml')
+            with open(schema_path, 'r') as f:
+                schema = yaml.safe_load(f)
+        
+            logger.info("Validating YAML against schema...")
+            try:
+                jsonschema.validate(instance=data, schema=schema)
+                logger.info("YAML validation successful!")
+            except jsonschema.ValidationError as e:
+                logger.error(f"YAML validation failed: {e}")
+                sys.exit(1)
+        
             # Process top-level groups
             for group_data in data.get('groups', []):
                 self.process_group(group_data)
-            
+        
             # Process relationships (after all entities are created)
             logger.info("Creating relationships between entities...")
             self.create_relationships(data)
-            
+        
             logger.info("YAML processing completed successfully!")
-            
+        
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML file: {e}")
             sys.exit(1)
