@@ -3,6 +3,7 @@ import logging
 import sys
 import time
 import os
+import traceback
 from typing import Dict, List, Optional, Any, Tuple
 
 import gitlab
@@ -92,7 +93,7 @@ class GitLabInjector:
             logger.error(f"Error parsing YAML file: {e}")
             sys.exit(1)
         except Exception as e:
-            logger.error(f"An error occurred: {e}")
+            logger.error(f"An error occurred: {e}\n{traceback.format_exc()}")
             sys.exit(1)
     
     def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int:
@@ -148,21 +149,21 @@ class GitLabInjector:
             # Store group path for later reference
             self.group_path_map[group_name] = group.full_path
             
-            ## Process labels at group level
-            #for label_data in group_data.get('labels', []):
-            #    self.process_label(label_data, group)
-            #
-            ## Process epics at group level (only available with GitLab Premium/Ultimate)
-            #for epic_data in group_data.get('epics', []):
-            #    self.process_epic(epic_data, group)
-            #
-            ## Process projects
-            #for project_data in group_data.get('projects', []):
-            #    self.process_project(project_data, group)
-            #
-            ## Process subgroups (recursive)
-            #for subgroup_data in group_data.get('subgroups', []):
-            #    self.process_group(subgroup_data, group.id)
+            # Process labels at group level
+            for label_data in group_data.get('labels', []):
+                self.process_label(label_data, group)
+            
+            # Process epics at group level (only available with GitLab Premium/Ultimate)
+            for epic_data in group_data.get('epics', []):
+                self.process_epic(epic_data, group)
+            
+            # Process projects
+            for project_data in group_data.get('projects', []):
+                self.process_project(project_data, group)
+            
+            # Process subgroups (recursive)
+            for subgroup_data in group_data.get('subgroups', []):
+                self.process_group(subgroup_data, group.id)
             
             return group.id
             
@@ -235,7 +236,7 @@ class GitLabInjector:
         """
         # Skip if not Premium/Ultimate
         if not hasattr(group, 'epics'):
-            logger.warning(f"Group {group.name} doesn't support epics (requires GitLab Premium/Ultimate)")
+            logger.error(f"Cannot create epic on object: {group}")
             return None
         
         epic_id = epic_data.get('id')
@@ -262,11 +263,16 @@ class GitLabInjector:
             logger.info(f"Created epic: {epic_title}")
             self.epic_id_map[epic_id] = epic.id
             return epic.id
-                
+        except gitlab.GitlabListError as e:
+            if "403" in str(e):
+                logger.warning(f"Error listing epics (may be due to missing a premium/ultimate license): {e}")
+                return None
+            logger.error(f"Error listing epics: {e}")
+            raise
         except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating epic {epic_title}: {e}")
             raise
-    
+
     def process_project(self, project_data: Dict[str, Any], group: Any) -> int|None:
         """
         Process and create a project.
@@ -282,9 +288,6 @@ class GitLabInjector:
         assert project_name, "Project name is missing"
         project_desc = project_data.get('description', '')
         
-        # Project path must be URL friendly
-        project_path = project_name.lower().replace(' ', '-')
-        
         try:
             # Check if project exists in group
             existing_projects = list(group.projects.list(search=project_name))
@@ -295,11 +298,11 @@ class GitLabInjector:
                 project = self.gl.projects.get(existing_project.id)
             else:
                 # Create project if it doesn't exist
-                project = group.projects.create({
+                project = self.gl.projects.create({
                     'name': project_name,
+                    'namespace_id': group.id,
                     'description': project_desc,
-                    'visibility': 'private',  # Adjust as needed
-                    'initialize_with_readme': True
+                    'visibility': 'private'  # Adjust as needed
                 })
                 logger.info(f"Created project: {project_name}")
                 
