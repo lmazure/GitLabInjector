@@ -84,8 +84,8 @@ class GitLabInjector:
                 self.process_group(group_data, self.parent_group_id)
         
             # Process relationships (after all entities are created)
-            logger.info("Creating relationships between entities...")
-            self.create_relationships(data)
+            #logger.info("Creating relationships between entities...")
+            #self.create_relationships(data)
         
             logger.info("YAML processing completed successfully!")
         
@@ -121,7 +121,7 @@ class GitLabInjector:
                 full_path = f"{parent_group.full_path}/{group_path}"
                 try:
                     group = self.gl.groups.get(full_path)
-                    logger.info(f"Subgroup already exists: {full_path}")
+                    logger.info(f"Subgroup already exists: {full_path} (ID: {group.id})")
                 except gitlab.GitlabGetError:
                     # Create subgroup
                     group = self.gl.groups.create({
@@ -131,11 +131,11 @@ class GitLabInjector:
                         'description': group_desc,
                         'visibility': 'private'  # Adjust as needed
                     })
-                    logger.info(f"Created subgroup: {full_path}")
+                    logger.info(f"Created subgroup: {full_path} (ID: {group.id})")
             else:
                 try:
                     group = self.gl.groups.get(group_path)
-                    logger.info(f"Top-level group already exists: {group_path}")
+                    logger.info(f"Top-level group already exists: {group_path} (ID: {group.id})")
                 except gitlab.GitlabGetError:
                     # Create top-level group
                     group = self.gl.groups.create({
@@ -144,7 +144,7 @@ class GitLabInjector:
                         'description': group_desc,
                         'visibility': 'private'  # Adjust as needed
                     })
-                    logger.info(f"Created top-level group: {group_path}")
+                    logger.info(f"Created top-level group: {group_path} (ID: {group.id})")
             
             # Store group path for later reference
             self.group_path_map[group_name] = group.full_path
@@ -202,7 +202,7 @@ class GitLabInjector:
                 existing_label = next((l for l in existing_labels if l.name == label_name), None)
                 
                 if existing_label:
-                    logger.info(f"Label already exists: {label_name}")
+                    logger.info(f"Label already exists: {label_name} (ID: {existing_label.id})")
                     self.label_id_map[label_id] = existing_label.id
                     return existing_label.id
             except (gitlab.GitlabGetError, StopIteration):
@@ -215,7 +215,7 @@ class GitLabInjector:
                     'color': label_color,
                     'description': label_desc
                 })
-                logger.info(f"Created label: {label_name}")
+                logger.info(f"Created label: {label_name} (ID: {label.id})")
                 self.label_id_map[label_id] = label.id
                 return label.id
                 
@@ -250,7 +250,7 @@ class GitLabInjector:
             existing_epic = next((e for e in existing_epics if e.title == epic_title), None)
             
             if existing_epic:
-                logger.info(f"Epic already exists: {epic_title}")
+                logger.info(f"Epic already exists: {epic_title} (ID: {existing_epic.id})")
                 self.epic_id_map[epic_id] = existing_epic.id
                 return existing_epic.id
             
@@ -260,7 +260,7 @@ class GitLabInjector:
                 'description': epic_desc,
                 'state': epic_state
             })
-            logger.info(f"Created epic: {epic_title}")
+            logger.info(f"Created epic: {epic_title} (ID: {epic.id})")
             self.epic_id_map[epic_id] = epic.id
             return epic.id
         except gitlab.GitlabListError as e:
@@ -294,7 +294,7 @@ class GitLabInjector:
             existing_project = next((p for p in existing_projects if p.name == project_name), None)
             
             if existing_project:
-                logger.info(f"Project already exists: {project_name}")
+                logger.info(f"Project already exists: {project_name} (ID: {existing_project.id})")
                 project = self.gl.projects.get(existing_project.id)
             else:
                 # Create project if it doesn't exist
@@ -304,7 +304,7 @@ class GitLabInjector:
                     'description': project_desc,
                     'visibility': 'private'  # Adjust as needed
                 })
-                logger.info(f"Created project: {project_name}")
+                logger.info(f"Created project: {project_name} (ID: {project.id})")
                 
                 # Give GitLab some time to initialize the project
                 time.sleep(1)
@@ -344,7 +344,7 @@ class GitLabInjector:
             existing_issue = next((i for i in existing_issues if i.title == issue_title), None)
             
             if existing_issue:
-                logger.info(f"Issue already exists: {issue_title}")
+                logger.info(f"Issue already exists: {issue_title} (ID: {existing_issue.id})")
                 self.issue_id_map[issue_id] = existing_issue.id
                 return existing_issue.id
             
@@ -353,13 +353,13 @@ class GitLabInjector:
                 'title': issue_title,
                 'description': issue_desc
             })
-            logger.info(f"Created issue: {issue_title}")
+            logger.info(f"Created issue: {issue_title} (ID: {issue.id})")
             
             # Update issue state if needed
             if issue_state == 'closed' and issue.state != 'closed':
                 issue.state_event = 'close'
                 issue.save()
-                logger.info(f"Closed issue: {issue_title}")
+                logger.info(f"Closed issue: {issue_title} (ID: {issue.id})")
             
             self.issue_id_map[issue_id] = issue.id
             return issue.id
