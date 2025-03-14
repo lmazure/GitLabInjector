@@ -1,2 +1,4 @@
 python-gitlab
 pyyaml
+jsonschema
+python-gitlab

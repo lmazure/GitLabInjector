@@ -15,7 +15,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger("gitlab-creator")
+logger = logging.getLogger("GitLabInjector")
 
 class GitLabInjector:
     """
@@ -33,7 +33,7 @@ class GitLabInjector:
         """
         self.gl = gitlab.Gitlab(url=gitlab_url, private_token=private_token)
         self.gl.auth()
-        logger.info(f"Connected to GitLab as {self.gl.user.username}")
+        logger.info(f"Connected to GitLab as {self.gl.user.username if self.gl.user else 'unknown'}")
         
         # Store parent group ID if provided
         self.parent_group_id = None
@@ -42,14 +42,14 @@ class GitLabInjector:
                 parent_group = self.gl.groups.get(parent_group_path)
                 self.parent_group_id = parent_group.id
                 logger.info(f"Using parent group: {parent_group_path} (ID: {self.parent_group_id})")
-            except gitlab.exceptions.GitlabGetError:
+            except gitlab.GitlabGetError:
                 logger.error(f"Parent group not found: {parent_group_path}")
                 sys.exit(1)
         
         # ID mappings to track created entities
-        self.label_id_map = {}  # Maps YAML label IDs to GitLab label IDs
-        self.epic_id_map = {}   # Maps YAML epic IDs to GitLab epic IDs
-        self.issue_id_map = {}  # Maps YAML issue IDs to GitLab issue IDs
+        self.label_id_map = {}    # Maps YAML label IDs to GitLab label IDs
+        self.epic_id_map = {}     # Maps YAML epic IDs to GitLab epic IDs
+        self.issue_id_map = {}    # Maps YAML issue IDs to GitLab issue IDs
         self.group_path_map = {}  # Maps group name to full path
     
     def process_yaml(self, yaml_file: str):
@@ -107,6 +107,7 @@ class GitLabInjector:
             The ID of the created/found group
         """
         group_name = group_data.get('name')
+        assert group_name, "Group name is missing"
         group_desc = group_data.get('description', '')
         
         # Group path must be URL friendly
@@ -120,11 +121,12 @@ class GitLabInjector:
                 try:
                     group = self.gl.groups.get(full_path)
                     logger.info(f"Subgroup already exists: {full_path}")
-                except gitlab.exceptions.GitlabGetError:
+                except gitlab.GitlabGetError:
                     # Create subgroup
-                    group = parent_group.subgroups.create({
+                    group = self.gl.groups.create({
                         'name': group_name,
                         'path': group_path,
+                        'parent_id': parent_id,
                         'description': group_desc,
                         'visibility': 'private'  # Adjust as needed
                     })
@@ -133,7 +135,7 @@ class GitLabInjector:
                 try:
                     group = self.gl.groups.get(group_path)
                     logger.info(f"Top-level group already exists: {group_path}")
-                except gitlab.exceptions.GitlabGetError:
+                except gitlab.GitlabGetError:
                     # Create top-level group
                     group = self.gl.groups.create({
                         'name': group_name,
@@ -164,11 +166,11 @@ class GitLabInjector:
             
             return group.id
             
-        except gitlab.exceptions.GitlabCreateError as e:
+        except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating group {group_name}: {e}")
             raise
     
-    def process_label(self, label_data: Dict[str, Any], group_or_project: Any) -> int:
+    def process_label(self, label_data: Dict[str, Any], group_or_project: Any) -> int|None:
         """
         Process and create a label.
         
@@ -202,7 +204,7 @@ class GitLabInjector:
                     logger.info(f"Label already exists: {label_name}")
                     self.label_id_map[label_id] = existing_label.id
                     return existing_label.id
-            except (gitlab.exceptions.GitlabGetError, StopIteration):
+            except (gitlab.GitlabGetError, StopIteration):
                 existing_label = None
             
             # Create label if it doesn't exist
@@ -216,11 +218,11 @@ class GitLabInjector:
                 self.label_id_map[label_id] = label.id
                 return label.id
                 
-        except gitlab.exceptions.GitlabCreateError as e:
+        except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating label {label_name}: {e}")
             raise
     
-    def process_epic(self, epic_data: Dict[str, Any], group: Any) -> int:
+    def process_epic(self, epic_data: Dict[str, Any], group: Any) -> int|None:
         """
         Process and create an epic.
         
@@ -261,11 +263,11 @@ class GitLabInjector:
             self.epic_id_map[epic_id] = epic.id
             return epic.id
                 
-        except gitlab.exceptions.GitlabCreateError as e:
+        except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating epic {epic_title}: {e}")
             raise
     
-    def process_project(self, project_data: Dict[str, Any], group: Any) -> int:
+    def process_project(self, project_data: Dict[str, Any], group: Any) -> int|None:
         """
         Process and create a project.
         
@@ -277,6 +279,7 @@ class GitLabInjector:
             The ID of the created/found project
         """
         project_name = project_data.get('name')
+        assert project_name, "Project name is missing"
         project_desc = project_data.get('description', '')
         
         # Project path must be URL friendly
@@ -312,7 +315,7 @@ class GitLabInjector:
             
             return project.id
                 
-        except gitlab.exceptions.GitlabCreateError as e:
+        except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating project {project_name}: {e}")
             raise
     
@@ -358,7 +361,7 @@ class GitLabInjector:
             self.issue_id_map[issue_id] = issue.id
             return issue.id
                 
-        except gitlab.exceptions.GitlabCreateError as e:
+        except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating issue {issue_title}: {e}")
             raise
     
@@ -428,7 +431,7 @@ class GitLabInjector:
                     epic.parent_id = parent_gitlab_epic_id
                     epic.save()
                     logger.info(f"Set parent epic for {epic.title}")
-                except gitlab.exceptions.GitlabUpdateError as e:
+                except gitlab.GitlabUpdateError as e:
                     logger.error(f"Error setting parent epic: {e}")
             
             # Add labels to epic
@@ -448,7 +451,7 @@ class GitLabInjector:
                 else:
                     logger.warning(f"Label {label_id} not found in label map")
             
-        except gitlab.exceptions.GitlabGetError as e:
+        except gitlab.GitlabGetError as e:
             logger.error(f"Error getting epic {gitlab_epic_id}: {e}")
     
     def _process_issue_relationships(self, issue_data: Dict[str, Any]):
@@ -505,7 +508,7 @@ class GitLabInjector:
                 else:
                     logger.warning(f"Label {label_id} not found in label map")
             
-        except gitlab.exceptions.GitlabGetError as e:
+        except gitlab.GitlabGetError as e:
             logger.error(f"Error getting issue {gitlab_issue_id}: {e}")
     
     def _get_group_id_for_epic(self, epic_id: int) -> Optional[int]:
@@ -525,7 +528,7 @@ class GitLabInjector:
                 if hasattr(group, 'epics'):
                     epic = group.epics.get(epic_id)
                     return group.id
-            except gitlab.exceptions.GitlabGetError:
+            except gitlab.GitlabGetError:
                 continue
         return None
     
