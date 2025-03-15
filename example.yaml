@@ -20,7 +20,7 @@ groups:
       - id: "epic2"
         title: "Epic 2"
         description: "Description of Epic 2"
-        state: "opened"
+        state: "closed"
         parent_epic_id: "epic1"  # Reference to parent epic ID
         label_ids: ["label2"]
     projects:

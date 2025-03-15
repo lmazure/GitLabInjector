@@ -47,11 +47,9 @@ class GitLabInjector:
                 logger.error(f"Parent group not found: {parent_group_path}")
                 sys.exit(1)
         
-        # ID mappings to track created entities
-        self.label_id_map = {}    # Maps YAML label IDs to GitLab label IDs
+        self.label_name_map = {}  # Maps YAML label IDs to GitLab label names
         self.epic_id_map = {}     # Maps YAML epic IDs to GitLab epic IDs
         self.issue_id_map = {}    # Maps YAML issue IDs to GitLab issue IDs
-        self.group_path_map = {}  # Maps group name to full path
     
     def process_yaml(self, yaml_file: str):
         """
@@ -146,9 +144,6 @@ class GitLabInjector:
                     })
                     logger.info(f"Created top-level group: {group_path} (ID: {group.id})")
             
-            # Store group path for later reference
-            self.group_path_map[group_name] = group.full_path
-            
             # Process labels at group level
             for label_data in group_data.get('labels', []):
                 self.process_label(label_data, group)
@@ -203,7 +198,7 @@ class GitLabInjector:
                 
                 if existing_label:
                     logger.info(f"Label already exists: {label_name} (ID: {existing_label.id})")
-                    self.label_id_map[label_id] = existing_label.id
+                    self.label_name_map[label_id] = label_name
                     return existing_label.id
             except (gitlab.GitlabGetError, StopIteration):
                 existing_label = None
@@ -216,7 +211,7 @@ class GitLabInjector:
                     'description': label_desc
                 })
                 logger.info(f"Created label: {label_name} (ID: {label.id})")
-                self.label_id_map[label_id] = label.id
+                self.label_name_map[label_id] = label_name
                 return label.id
                 
         except gitlab.GitlabCreateError as e:
@@ -243,26 +238,56 @@ class GitLabInjector:
         epic_title = epic_data.get('title')
         epic_desc = epic_data.get('description', '')
         epic_state = epic_data.get('state', 'opened')
+        epic_labels = epic_data.get('labels', [])
+        epic_parent_id = epic_data.get('parent_epic_id')
         
         try:
             # Search for existing epic by title
             existing_epics = list(group.epics.list(search=epic_title))
-            existing_epic = next((e for e in existing_epics if e.title == epic_title), None)
+            epic = next((e for e in existing_epics if e.title == epic_title), None)
             
-            if existing_epic:
-                logger.info(f"Epic already exists: {epic_title} (ID: {existing_epic.id})")
-                self.epic_id_map[epic_id] = existing_epic.id
-                return existing_epic.id
-            
-            # Create epic if it doesn't exist
-            epic = group.epics.create({
-                'title': epic_title,
-                'description': epic_desc,
-                'state': epic_state
-            })
-            logger.info(f"Created epic: {epic_title} (ID: {epic.id})")
+            if epic:
+                logger.info(f"Epic already exists: {epic_title} (ID: {epic.id})")
+            else:
+                # Create epic if it doesn't exist
+                epic = group.epics.create({
+                    'title': epic_title,
+                    'description': epic_desc,
+                    'state': epic_state
+                })
+                logger.info(f"Created epic: {epic_title} (ID: {epic.id})")
             self.epic_id_map[epic_id] = epic.id
+            
+            # Update epic state if needed
+            if epic_state == 'closed' and epic.state != 'closed':
+                epic.state_event = 'close'
+                epic.save()
+                logger.info(f"Closed epic: {epic_title} (ID: {epic.id})")
+            
+            # Add labels to epic
+            for label_id in epic_labels:
+                if label_id in self.label_name_map:
+                    try:
+                        epic.labels.append(self.label_name_map[label_id])
+                        epic.save()
+                        logger.info(f"Added label {label_id} (ID: {self.label_name_map[label_id]}) to epic {epic.title}")
+                    except Exception as e:
+                        logger.error(f"Error adding label {label_id} to epic: {e}")
+                else:
+                    logger.warning(f"Label {label_id} not found in label map")
+            
+            # Set parent epic if provided
+            if epic_parent_id:
+                parent_epic = self.epic_id_map.get(epic_parent_id)
+                if parent_epic:
+                    epic.parent_epic_id = parent_epic
+                    epic.save()
+                    logger.info(f"Set parent epic {parent_epic} (ID: {parent_epic}) for epic {epic.title}")
+                else:
+                    logger.warning(f"Parent epic {epic_parent_id} not found in epic map")
+
             return epic.id
+
         except gitlab.GitlabListError as e:
             if "403" in str(e):
                 logger.warning(f"Error listing epics (may be due to missing a premium/ultimate license): {e}")
@@ -337,250 +362,59 @@ class GitLabInjector:
         issue_title = issue_data.get('title')
         issue_desc = issue_data.get('description', '')
         issue_state = issue_data.get('state', 'opened')
-        
+        label_ids = issue_data.get('label_ids', [])
+        parent_epic_id = issue_data.get('parent_epic_id')
+
         try:
             # Search for existing issue by title
             existing_issues = list(project.issues.list(search=issue_title))
-            existing_issue = next((i for i in existing_issues if i.title == issue_title), None)
+            issue = next((i for i in existing_issues if i.title == issue_title), None)
             
-            if existing_issue:
-                logger.info(f"Issue already exists: {issue_title} (ID: {existing_issue.id})")
-                self.issue_id_map[issue_id] = existing_issue.id
-                return existing_issue.id
-            
-            # Create issue if it doesn't exist
-            issue = project.issues.create({
-                'title': issue_title,
-                'description': issue_desc
-            })
-            logger.info(f"Created issue: {issue_title} (ID: {issue.id})")
-            
+            if issue:
+                logger.info(f"Issue already exists: {issue_title} (ID: {issue.id})")
+            else:
+                # Create issue if it doesn't exist
+                issue = project.issues.create({
+                    'title': issue_title,
+                    'description': issue_desc
+                })
+                logger.info(f"Created issue: {issue_title} (ID: {issue.id})")
+            self.issue_id_map[issue_id] = issue.id
+
             # Update issue state if needed
             if issue_state == 'closed' and issue.state != 'closed':
                 issue.state_event = 'close'
                 issue.save()
                 logger.info(f"Closed issue: {issue_title} (ID: {issue.id})")
             
-            self.issue_id_map[issue_id] = issue.id
-            return issue.id
-                
-        except gitlab.GitlabCreateError as e:
-            logger.error(f"Error creating issue {issue_title}: {e}")
-            raise
-    
-    def create_relationships(self, data: Dict[str, Any]):
-        """
-        Create relationships between entities after all have been created.
-        
-        Args:
-            data: The full YAML data structure
-        """
-        # Process epic parent relationships
-        for group_data in data.get('groups', []):
-            self._process_group_relationships(group_data)
-    
-    def _process_group_relationships(self, group_data: Dict[str, Any]):
-        """
-        Process relationships for a group and its children.
-        
-        Args:
-            group_data: Dictionary containing group definition
-        """
-        # Process epic relationships
-        for epic_data in group_data.get('epics', []):
-            self._process_epic_relationships(epic_data)
-        
-        # Process project issue relationships
-        for project_data in group_data.get('projects', []):
-            for issue_data in project_data.get('issues', []):
-                self._process_issue_relationships(issue_data)
-        
-        # Process subgroups recursively
-        for subgroup_data in group_data.get('subgroups', []):
-            self._process_group_relationships(subgroup_data)
-    
-    def _process_epic_relationships(self, epic_data: Dict[str, Any]):
-        """
-        Process relationships for an epic.
-        
-        Args:
-            epic_data: Dictionary containing epic definition
-        """
-        epic_id = epic_data.get('id')
-        parent_epic_id = epic_data.get('parent_epic_id')
-        label_ids = epic_data.get('label_ids', [])
-        
-        # Skip if epic wasn't created successfully
-        if epic_id not in self.epic_id_map:
-            logger.warning(f"Skipping relationships for epic {epic_id} - not found in ID map")
-            return
-        
-        gitlab_epic_id = self.epic_id_map[epic_id]
-        
-        try:
-            # Get the epic object
-            group_id = self._get_group_id_for_epic(gitlab_epic_id)
-            if not group_id:
-                logger.warning(f"Cannot find group for epic {epic_id}")
-                return
-                
-            group = self.gl.groups.get(group_id)
-            epic = group.epics.get(gitlab_epic_id)
-            
-            # Set parent epic if specified
-            if parent_epic_id and parent_epic_id in self.epic_id_map:
-                parent_gitlab_epic_id = self.epic_id_map[parent_epic_id]
-                try:
-                    epic.parent_id = parent_gitlab_epic_id
-                    epic.save()
-                    logger.info(f"Set parent epic for {epic.title}")
-                except gitlab.GitlabUpdateError as e:
-                    logger.error(f"Error setting parent epic: {e}")
-            
-            # Add labels to epic
-            for label_id in label_ids:
-                if label_id in self.label_id_map:
-                    try:
-                        # Get label name from GitLab using ID
-                        label_obj = self._get_label_by_id(group, self.label_id_map[label_id])
-                        if label_obj:
-                            # Add label to epic by name
-                            if not self._epic_has_label(epic, label_obj.name):
-                                epic.labels = epic.labels + [label_obj.name]
-                                epic.save()
-                                logger.info(f"Added label {label_obj.name} to epic {epic.title}")
-                    except Exception as e:
-                        logger.error(f"Error adding label {label_id} to epic: {e}")
-                else:
-                    logger.warning(f"Label {label_id} not found in label map")
-            
-        except gitlab.GitlabGetError as e:
-            logger.error(f"Error getting epic {gitlab_epic_id}: {e}")
-    
-    def _process_issue_relationships(self, issue_data: Dict[str, Any]):
-        """
-        Process relationships for an issue.
-        
-        Args:
-            issue_data: Dictionary containing issue definition
-        """
-        issue_id = issue_data.get('id')
-        parent_epic_id = issue_data.get('parent_epic_id')
-        label_ids = issue_data.get('label_ids', [])
-        
-        # Skip if issue wasn't created successfully
-        if issue_id not in self.issue_id_map:
-            logger.warning(f"Skipping relationships for issue {issue_id} - not found in ID map")
-            return
-        
-        gitlab_issue_id = self.issue_id_map[issue_id]
-        
-        try:
-            # Get the issue object
-            issue = self.gl.issues.get(gitlab_issue_id)
-            project = self.gl.projects.get(issue.project_id)
-            
-            # Link to parent epic if specified (requires GitLab Premium/Ultimate)
-            if parent_epic_id and parent_epic_id in self.epic_id_map:
-                parent_gitlab_epic_id = self.epic_id_map[parent_epic_id]
-                try:
-                    # This API endpoint might require GitLab Premium/Ultimate
-                    project.issues.get(issue.iid).link(
-                        target_project_id=issue.project_id,
-                        target_issue_iid=issue.iid,
-                        link_type='relates_to'
-                    )
-                    logger.info(f"Linked issue {issue.title} to epic")
-                except Exception as e:
-                    logger.warning(f"Error linking issue to epic (may require Premium/Ultimate): {e}")
-            
             # Add labels to issue
             for label_id in label_ids:
-                if label_id in self.label_id_map:
+                if label_id in self.label_name_map:
                     try:
-                        # Get label name from GitLab using ID
-                        label_obj = self._get_label_by_id(project, self.label_id_map[label_id])
-                        if label_obj:
-                            # Add label to issue by name
-                            if not self._issue_has_label(issue, label_obj.name):
-                                issue.labels = issue.labels + [label_obj.name]
-                                issue.save()
-                                logger.info(f"Added label {label_obj.name} to issue {issue.title}")
+                        issue.labels.append(self.label_name_map[label_id])
+                        issue.save()
+                        logger.info(f"Added label {label_id} (ID: {self.label_name_map[label_id]}) to issue {issue.title}")
                     except Exception as e:
                         logger.error(f"Error adding label {label_id} to issue: {e}")
                 else:
                     logger.warning(f"Label {label_id} not found in label map")
-            
-        except gitlab.GitlabGetError as e:
-            logger.error(f"Error getting issue {gitlab_issue_id}: {e}")
-    
-    def _get_group_id_for_epic(self, epic_id: int) -> Optional[int]:
-        """
-        Find the group ID that contains a given epic.
-        
-        Args:
-            epic_id: GitLab epic ID
-            
-        Returns:
-            Group ID if found, None otherwise
-        """
-        # This is a simplified approach - in a real implementation, you might need
-        # to query all groups to find the one containing the epic
-        for group in self.gl.groups.list(all=True):
-            try:
-                if hasattr(group, 'epics'):
-                    epic = group.epics.get(epic_id)
-                    return group.id
-            except gitlab.GitlabGetError:
-                continue
-        return None
-    
-    def _get_label_by_id(self, group_or_project: Any, label_id: int) -> Optional[Any]:
-        """
-        Get a label object by its ID.
-        
-        Args:
-            group_or_project: GitLab group or project object
-            label_id: GitLab label ID
-            
-        Returns:
-            Label object if found, None otherwise
-        """
-        try:
-            if hasattr(group_or_project, 'labels'):
-                for label in group_or_project.labels.list(all=True):
-                    if label.id == label_id:
-                        return label
-        except Exception as e:
-            logger.error(f"Error getting label {label_id}: {e}")
-        return None
-    
-    def _epic_has_label(self, epic: Any, label_name: str) -> bool:
-        """
-        Check if an epic already has a given label.
-        
-        Args:
-            epic: GitLab epic object
-            label_name: Label name to check
-            
-        Returns:
-            True if epic has the label, False otherwise
-        """
-        return label_name in epic.labels
-    
-    def _issue_has_label(self, issue: Any, label_name: str) -> bool:
-        """
-        Check if an issue already has a given label.
-        
-        Args:
-            issue: GitLab issue object
-            label_name: Label name to check
-            
-        Returns:
-            True if issue has the label, False otherwise
-        """
-        return label_name in issue.labels
 
+            # Set parent epic if provided
+            if parent_epic_id:
+                parent_epic = self.epic_id_map.get(parent_epic_id)
+                if parent_epic:
+                    issue.parent_epic_id = parent_epic
+                    issue.save()
+                    logger.info(f"Set parent epic {parent_epic} (ID: {parent_epic}) for issue {issue.title}")
+                else:
+                    logger.warning(f"Parent epic {parent_epic_id} not found in epic map")
+            
+            return issue.id
+
+        except gitlab.GitlabCreateError as e:
+            logger.error(f"Error creating issue {issue_title}: {e}")
+            raise
+    
 def main():
     """
     Main entry point for the script.
