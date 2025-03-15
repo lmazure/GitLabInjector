@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GitLab Group Structure",
-  "description": "Schema for GitLab group structure definition",
+  "title": "GitLab injected data",
+  "description": "Schema for GitLab injected data",
   "type": "object",
   "required": ["groups"],
   "properties": {

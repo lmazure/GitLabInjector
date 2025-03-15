@@ -2,7 +2,7 @@ groups:
   - name: "Group 1"
     description: "Description of Group 1"
     labels:
-      - id: "label1"  # Unique identifier within this context
+      - id: "label1"
         name: "Bug"
         description: "Bug description"
         color: "#FF0000"
@@ -11,7 +11,7 @@ groups:
         description: "Feature description"
         color: "#00FF00"
     epics:
-      - id: "epic1"  # Unique identifier
+      - id: "epic1"
         title: "Epic 1"
         description: "Description of Epic 1"
         state: "opened"

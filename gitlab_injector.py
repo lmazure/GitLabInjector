@@ -280,7 +280,7 @@ class GitLabInjector:
             if epic_epic_parent_id:
                 parent_epic = self.epic_id_map.get(epic_epic_parent_id)
                 if parent_epic:
-                    epic.parent_epic_id = parent_epic
+                    epic.parent_id = parent_epic
                     epic.save()
                     logger.info(f"Set parent epic {parent_epic} (ID: {parent_epic}) for epic {epic.title}")
                 else:
@@ -403,7 +403,7 @@ class GitLabInjector:
             if issue_parent_epic_id:
                 parent_epic = self.epic_id_map.get(issue_parent_epic_id)
                 if parent_epic:
-                    issue.parent_epic_id = parent_epic
+                    issue.epic_id = parent_epic
                     issue.save()
                     logger.info(f"Set parent epic {parent_epic} (ID: {parent_epic}) for issue {issue.title}")
                 else:
