@@ -27,19 +27,19 @@ groups:
         description: "Main strategic initiatives for Q1"
         state: "opened"
         parent_epic_id: null
-        label_ids: ["label_feature"]
+        labels: ["label_feature"]
       - id: "epic_security"
         title: "Security Improvements"
         description: "Security enhancements across all projects"
         state: "opened"
         parent_epic_id: "epic_q1_roadmap"
-        label_ids: ["label_bug"]
+        labels: ["label_bug"]
       - id: "epic_refactor"
         title: "Code Refactoring"
         description: "Technical debt reduction initiative"
         state: "closed"
         parent_epic_id: null
-        label_ids: ["label_bug", "label_feature"]
+        labels: ["label_bug", "label_feature"]
     
     # Group-level projects
     projects:
@@ -51,13 +51,13 @@ groups:
             description: "Add support for OAuth 2.0 authentication"
             state: "opened"
             parent_epic_id: "epic_security"
-            label_ids: ["label_feature"]
+            labels: ["label_feature"]
           - id: "issue_api_perf"
             title: "Optimize Database Queries"
             description: "Improve performance of listing endpoints"
             state: "closed"
             parent_epic_id: "epic_refactor"
-            label_ids: ["label_bug"]
+            labels: ["label_bug"]
       
       - name: "Mobile App"
         description: "Cross-platform mobile application"
@@ -67,7 +67,7 @@ groups:
             description: "App crashes on specific Android devices"
             state: "opened"
             parent_epic_id: null
-            label_ids: ["label_bug"]
+            labels: ["label_bug"]
     
     # Group-level subgroups
     subgroups:

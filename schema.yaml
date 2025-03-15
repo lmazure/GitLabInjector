@@ -104,7 +104,7 @@
           "type": ["string", "null"],
           "description": "ID of parent epic, null if top-level"
         },
-        "label_ids": {
+        "labels": {
           "type": "array",
           "description": "List of label IDs to apply to this epic",
           "items": {
@@ -159,7 +159,7 @@
           "type": ["string", "null"],
           "description": "ID of parent epic"
         },
-        "label_ids": {
+        "labels": {
           "type": "array",
           "description": "List of label IDs to apply to this issue",
           "items": {

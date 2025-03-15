@@ -16,13 +16,13 @@ groups:
         description: "Description of Epic 1"
         state: "opened"
         parent_epic_id: null  # null for top-level epics
-        label_ids: ["label1", "label2"]
+        labels: ["label1", "label2"]
       - id: "epic2"
         title: "Epic 2"
         description: "Description of Epic 2"
         state: "closed"
         parent_epic_id: "epic1"  # Reference to parent epic ID
-        label_ids: ["label2"]
+        labels: ["label2"]
     projects:
       - name: "Project 1"
         description: "Description of Project 1"
@@ -32,13 +32,13 @@ groups:
             description: "Description of Issue 1"
             state: "opened"
             parent_epic_id: "epic1"  # Reference to epic ID
-            label_ids: ["label1"]
+            labels: ["label1"]
           - id: "issue2"
             title: "Issue 2"
             description: "Description of Issue 2"
             state: "closed"
             parent_epic_id: "epic2"
-            label_ids: ["label1", "label2"]
+            labels: ["label1", "label2"]
       - name: "Project 2"
         description: "Description of Project 2"
         issues: []
