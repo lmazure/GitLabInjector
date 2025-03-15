@@ -40,7 +40,6 @@ groups:
             label_ids: ["label1", "label2"]
       - name: "Project 2"
         description: "Description of Project 2"
-        issues: []
     subgroups:
       - name: "Subgroup 11"
         description: "Description of Subgroup 11"
@@ -67,7 +66,6 @@ groups:
                 color: "#FFFF00"
           - name: "Subgroup 112"
             description: "Description of Subgroup 112"
-            labels: []
             projects:
               - name: "Deep Project"
                 description: Description of Deep project\na line after
@@ -79,6 +77,5 @@ groups:
                     label_ids: ["label2"]
       - name: "Subgroup 12"
         description: "Description of Subgroup 12"
-        labels: []
   - name: "Group 2"
     description: "Description of Group 2"
