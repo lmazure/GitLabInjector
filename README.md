@@ -21,7 +21,7 @@ python gitlab_injector.py --config config.yaml --token YOUR_TOKEN --url https://
 | Parameter  | Required | Description                                                                                                                                      |
 |------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | `--config` | Yes      | Path to the YAML configuration file that defines the data to inject                                                                              |
-| `--token`  | Yes      | GitLab personal access token with API access                                                                                                     |
+| `--token`  | Yes      | GitLab personal access token with API write access                                                                                               |
 | `--url`    | Yes      | GitLab URL (e.g., https://gitlab.example.com)                                                                                                    |
 | `--group`  | No       | Parent group path where top-level groups should be created (e.g., "group/subgroup"). If not specified, groups will be created at the root level. |
 
@@ -29,7 +29,7 @@ python gitlab_injector.py --config config.yaml --token YOUR_TOKEN --url https://
 
 The schema of the YAML file is defined in [schema.yaml](./schema.yaml).
 
-The pointers between entities (e.g. to set a label on an issue) are using `id`s. The pointed entities must always be defined before the pointing entity.
+The references between entities (e.g., to set a label on an issue) are using `id`s. A referenced entity must always be defined before the referring entity. Otherwise, the reference cannot be created; in this case, a warning `Xxx id='yyy' not found in xxx map` (e.g.,, `Label id='unknown' not found in label map`) is logged.
 
 [example.yaml](./example.yaml) is a sample file.
 

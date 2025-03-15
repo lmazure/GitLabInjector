@@ -270,11 +270,11 @@ class GitLabInjector:
                     try:
                         epic.labels.append(self.label_name_map[label_id])
                         epic.save()
-                        logger.info(f"Added label '{label_id}' (name: '{self.label_name_map[label_id]}') to epic '{epic.title}'")
+                        logger.info(f"Added label '{self.label_name_map[label_id]}' to epic '{epic.title}'")
                     except Exception as e:
-                        logger.error(f"Error adding label '{label_id}' to epic: {e}")
+                        logger.error(f"Error adding label '{self.label_name_map[label_id]}' to epic: {e}")
                 else:
-                    logger.warning(f"Label '{label_id}' not found in label map")
+                    logger.warning(f"Label id='{label_id}' not found in label map")
             
             # Set parent epic if provided
             if epic_epic_parent_id:
@@ -284,7 +284,7 @@ class GitLabInjector:
                     epic.save()
                     logger.info(f"Set parent epic (GitLab ID: {parent_epic}) for epic '{epic.title}'")
                 else:
-                    logger.warning(f"Parent epic '{epic_epic_parent_id}' not found in epic map")
+                    logger.warning(f"Parent epic id='{epic_epic_parent_id}' not found in epic map")
 
             return epic.id
 
@@ -393,11 +393,11 @@ class GitLabInjector:
                     try:
                         issue.labels.append(self.label_name_map[label_id])
                         issue.save()
-                        logger.info(f"Added label '{label_id}' (name: '{self.label_name_map[label_id]}') to issue '{issue.title}'")
+                        logger.info(f"Added label '{self.label_name_map[label_id]}' to issue '{issue.title}'")
                     except Exception as e:
-                        logger.error(f"Error adding label '{label_id}' to issue: {e}")
+                        logger.error(f"Error adding label '{self.label_name_map[label_id]}' to issue: {e}")
                 else:
-                    logger.warning(f"Label '{label_id}' not found in label map")
+                    logger.warning(f"Label id='{label_id}' not found in label map")
 
             # Set parent epic if provided
             if issue_parent_epic_id:
@@ -407,7 +407,7 @@ class GitLabInjector:
                     issue.save()
                     logger.info(f"Set parent epic (GitLab ID: {parent_epic}) for issue '{issue.title}'")
                 else:
-                    logger.warning(f"Parent epic '{issue_parent_epic_id}' not found in epic map")
+                    logger.warning(f"Parent epic id='{issue_parent_epic_id}' not found in epic map")
             
             return issue.id
 
