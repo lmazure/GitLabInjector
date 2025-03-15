@@ -236,10 +236,10 @@ class GitLabInjector:
         
         epic_id = epic_data.get('id')
         epic_title = epic_data.get('title')
-        epic_desc = epic_data.get('description', '')
+        epic_desc = epic_data.get('description')
         epic_state = epic_data.get('state', 'opened')
-        epic_labels = epic_data.get('labels', [])
-        epic_epic_parent_id = epic_data.get('parent_epic_id')
+        epic_labels = epic_data.get('label_ids', [])
+        epic_epic_parent_id = epic_data.get('parent_epic_id', None)
         
         try:
             # Search for existing epic by title
@@ -360,10 +360,10 @@ class GitLabInjector:
         """
         issue_id = issue_data.get('id')
         issue_title = issue_data.get('title')
-        issue_desc = issue_data.get('description', '')
+        issue_desc = issue_data.get('description')
         issue_state = issue_data.get('state', 'opened')
-        issue_labels = issue_data.get('labels', [])
-        issue_parent_epic_id = issue_data.get('parent_epic_id')
+        issue_labels = issue_data.get('label_ids', [])
+        issue_parent_epic_id = issue_data.get('parent_epic_id', None)
 
         try:
             # Search for existing issue by title
@@ -405,7 +405,7 @@ class GitLabInjector:
                 if parent_epic:
                     issue.epic_id = parent_epic
                     issue.save()
-                    logger.info(f"Set parent epic {parent_epic} (ID: {parent_epic}) for issue {issue.title}")
+                    logger.info(f"Set parent epic (ID: {parent_epic}) for issue {issue.title}")
                 else:
                     logger.warning(f"Parent epic {issue_parent_epic_id} not found in epic map")
             

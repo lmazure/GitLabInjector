@@ -81,7 +81,7 @@
     },
     "epic": {
       "type": "object",
-      "required": ["id", "title", "description", "state"],
+      "required": ["id", "title", "description"],
       "properties": {
         "id": {
           "type": "string",
@@ -101,10 +101,10 @@
           "enum": ["opened", "closed"]
         },
         "parent_epic_id": {
-          "type": ["string", "null"],
-          "description": "ID of parent epic, null if top-level"
+          "type": "string",
+          "description": "ID of parent epic"
         },
-        "labels": {
+        "label_ids": {
           "type": "array",
           "description": "List of label IDs to apply to this epic",
           "items": {
@@ -136,7 +136,7 @@
     },
     "issue": {
       "type": "object",
-      "required": ["id", "title", "description", "state"],
+      "required": ["id", "title", "description"],
       "properties": {
         "id": {
           "type": "string",
@@ -156,10 +156,10 @@
           "enum": ["opened", "closed"]
         },
         "parent_epic_id": {
-          "type": ["string", "null"],
+          "type": "string",
           "description": "ID of parent epic"
         },
-        "labels": {
+        "label_ids": {
           "type": "array",
           "description": "List of label IDs to apply to this issue",
           "items": {

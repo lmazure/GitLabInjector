@@ -15,14 +15,13 @@ groups:
         title: "Epic 1"
         description: "Description of Epic 1"
         state: "opened"
-        parent_epic_id: null  # null for top-level epics
-        labels: ["label1", "label2"]
+        label_ids: ["label1", "label2"]
       - id: "epic2"
         title: "Epic 2"
         description: "Description of Epic 2"
         state: "closed"
-        parent_epic_id: "epic1"  # Reference to parent epic ID
-        labels: ["label2"]
+        parent_epic_id: "epic1"
+        label_ids: ["label2"]
     projects:
       - name: "Project 1"
         description: "Description of Project 1"
@@ -31,14 +30,14 @@ groups:
             title: "Issue 1"
             description: "Description of Issue 1"
             state: "opened"
-            parent_epic_id: "epic1"  # Reference to epic ID
-            labels: ["label1"]
+            parent_epic_id: "epic1"
+            label_ids: ["label1"]
           - id: "issue2"
             title: "Issue 2"
             description: "Description of Issue 2"
             state: "closed"
             parent_epic_id: "epic2"
-            labels: ["label1", "label2"]
+            label_ids: ["label1", "label2"]
       - name: "Project 2"
         description: "Description of Project 2"
         issues: []
@@ -69,9 +68,17 @@ groups:
           - name: "Subgroup 112"
             description: "Description of Subgroup 112"
             labels: []
+            projects:
+              - name: "Deep Project"
+                description: Description of Deep project\na line after
+                issues:
+                  - id: "deep issue1"
+                    title: "Deep Issue 1"
+                    description: "Description of Deep Issue 1\nThis is an issue very deep in the hierarchy"
+                    parent_epic_id: "epic1"
+                    label_ids: ["label2"]
       - name: "Subgroup 12"
         description: "Description of Subgroup 12"
         labels: []
   - name: "Group 2"
     description: "Description of Group 2"
-    # ... similar structure as Group 1
