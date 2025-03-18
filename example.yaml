@@ -10,6 +10,26 @@ groups:
         name: "Feature"
         description: "Feature description"
         color: "#00FF00"
+    iterations:
+      - id: "iteration1"
+        title: "Sprint 1"
+        description: "First sprint"
+        start_date: "2025-03-01"
+        due_date: "2025-03-15"
+        state: "active"
+      - id: "iteration2"
+        title: "Sprint 2"
+        description: "Second sprint"
+        start_date: "2025-03-16"
+        due_date: "2025-03-31"
+        state: "upcoming"
+    milestones:
+      - id: "milestone1"
+        title: "Release 1.0"
+        description: "First major release"
+        start_date: "2025-03-01"
+        due_date: "2025-04-30"
+        state: "active"
     epics:
       - id: "epic1"
         title: "Epic 1"
@@ -25,19 +45,36 @@ groups:
     projects:
       - name: "Project 1"
         description: "Description of Project 1"
+        milestones:
+          - id: "milestone2"
+            title: "Project Milestone"
+            description: "Project-specific milestone"
+            start_date: "2025-03-10"
+            due_date: "2025-03-25"
+            state: "active"
         issues:
           - id: "issue1"
             title: "Issue 1"
             description: "Description of Issue 1"
             state: "opened"
             parent_epic_id: "epic1"
+            milestone_id: "milestone2"
+            iteration_id: "iteration1"
             label_ids: ["label1"]
           - id: "issue2"
             title: "Issue 2"
             description: "Description of Issue 2"
             state: "closed"
             parent_epic_id: "epic2"
+            milestone_id: "milestone1"
             label_ids: ["label1", "label2"]
+          - id: "issue3"
+            title: "Issue 3"
+            description: "Description of Issue 3"
+            state: "opened"
+            parent_epic_id: "epic1"
+            milestone_id: "milestone2"
+            iteration_id: "iteration1"
       - name: "Project 2"
         description: "Description of Project 2"
     subgroups:
@@ -68,12 +105,24 @@ groups:
             description: "Description of Subgroup 112"
             projects:
               - name: "Deep Project"
-                description: Description of Deep project\na line after
+                description: |
+                  Description of Deep project
+                  a line after
+                milestones:
+                  - id: "milestone3"
+                    title: "Deep Project Milestone"
+                    description: "Milestone for deep project"
+                    start_date: "2025-04-01"
+                    due_date: "2025-04-15"
+                    state: "active"
                 issues:
                   - id: "deep issue1"
                     title: "Deep Issue 1"
-                    description: "Description of Deep Issue 1\nThis is an issue very deep in the hierarchy"
+                    description: "Description of Deep Issue 1
+                    This is an issue very deep in the hierarchy"
                     parent_epic_id: "epic1"
+                    milestone_id: "milestone3"
+                    iteration_id: "iteration2"
                     label_ids: ["label2"]
       - name: "Subgroup 12"
         description: "Description of Subgroup 12"

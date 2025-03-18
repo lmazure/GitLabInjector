@@ -40,6 +40,20 @@
             "$ref": "#/definitions/epic"
           }
         },
+        "iterations": {
+          "type": "array",
+          "description": "List of iterations",
+          "items": {
+            "$ref": "#/definitions/iteration"
+          }
+        },
+        "milestones": {
+          "type": "array",
+          "description": "List of milestones",
+          "items": {
+            "$ref": "#/definitions/milestone"
+          }
+        },
         "projects": {
           "type": "array",
           "description": "List of projects",
@@ -113,6 +127,72 @@
         }
       }
     },
+    "iteration": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the iteration within this YAML"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the iteration"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the iteration"
+        },
+        "start_date": {
+          "type": "string",
+          "description": "Start date in YYYY-MM-DD format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "due_date": {
+          "type": "string",
+          "description": "Due date in YYYY-MM-DD format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the iteration",
+          "enum": ["active", "upcoming", "closed"]
+        }
+      }
+    },
+    "milestone": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the milestone within this YAML"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the milestone"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the milestone"
+        },
+        "start_date": {
+          "type": "string",
+          "description": "Start date in YYYY-MM-DD format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "due_date": {
+          "type": "string",
+          "description": "Due date in YYYY-MM-DD format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the milestone",
+          "enum": ["active", "closed"]
+        }
+      }
+    },
     "project": {
       "type": "object",
       "required": ["name", "description"],
@@ -124,6 +204,13 @@
         "description": {
           "type": "string",
           "description": "Description of the project"
+        },
+        "milestones": {
+          "type": "array",
+          "description": "List of milestones",
+          "items": {
+            "$ref": "#/definitions/milestone"
+          }
         },
         "issues": {
           "type": "array",
@@ -158,6 +245,14 @@
         "parent_epic_id": {
           "type": "string",
           "description": "ID of parent epic"
+        },
+        "milestone_id": {
+          "type": "string",
+          "description": "ID of milestone to assign to this issue"
+        },
+        "iteration_id": {
+          "type": "string",
+          "description": "ID of iteration to assign to this issue"
         },
         "label_ids": {
           "type": "array",

@@ -1,4 +1,4 @@
 python-gitlab
+python-gitlab[graphql]
 pyyaml
 jsonschema
-python-gitlab

@@ -5,6 +5,8 @@ import time
 import os
 import traceback
 from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime
+import json
 
 import gitlab
 import yaml
@@ -36,6 +38,8 @@ class GitLabInjector:
         self.gl.auth()
         logger.info(f"Connected to GitLab as {self.gl.user.username if self.gl.user else 'unknown'}")
         
+        self.gq = gitlab.GraphQL(gitlab_url, token=private_token)
+
         # Store parent group ID if provided
         self.parent_group_id = None
         if parent_group_path:
@@ -47,9 +51,11 @@ class GitLabInjector:
                 logger.error(f"Parent group not found: {parent_group_path}")
                 sys.exit(1)
         
-        self.label_name_map = {}  # Maps YAML label IDs to GitLab label names
-        self.epic_id_map = {}     # Maps YAML epic IDs to GitLab epic IDs
-        self.issue_id_map = {}    # Maps YAML issue IDs to GitLab issue IDs
+        self.label_name_map = {}    # Maps YAML label IDs to GitLab label names
+        self.epic_id_map = {}       # Maps YAML epic IDs to GitLab epic IDs
+        self.issue_id_map = {}      # Maps YAML issue IDs to GitLab issue IDs
+        self.iteration_id_map = {}  # Maps YAML iteration IDs to GitLab iteration IDs
+        self.milestone_id_map = {}  # Maps YAML milestone IDs to GitLab milestone IDs
     
     def process_yaml(self, yaml_file: str):
         """
@@ -81,10 +87,6 @@ class GitLabInjector:
             for group_data in data.get('groups', []):
                 self.process_group(group_data, self.parent_group_id)
         
-            # Process relationships (after all entities are created)
-            #logger.info("Creating relationships between entities...")
-            #self.create_relationships(data)
-        
             logger.info("YAML processing completed successfully!")
         
         except yaml.YAMLError as e:
@@ -93,7 +95,7 @@ class GitLabInjector:
         except Exception as e:
             logger.error(f"An error occurred: {e}\n{traceback.format_exc()}")
             sys.exit(1)
-    
+
     def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int:
         """
         Process and create a group or subgroup.
@@ -148,6 +150,14 @@ class GitLabInjector:
             for label_data in group_data.get('labels', []):
                 self.process_label(label_data, group)
             
+            # Process iterations at group level (only available with GitLab Premium/Ultimate)
+            for iteration_data in group_data.get('iterations', []):
+                self.process_iteration(iteration_data, group)
+                
+            # Process milestones at group level
+            for milestone_data in group_data.get('milestones', []):
+                self.process_milestone(milestone_data, group)
+            
             # Process epics at group level (only available with GitLab Premium/Ultimate)
             for epic_data in group_data.get('epics', []):
                 self.process_epic(epic_data, group)
@@ -195,7 +205,7 @@ class GitLabInjector:
                 # Using find instead of get as get may raise an error for multiple matches
                 existing_labels = list(labels_manager.list(search=label_name))
                 existing_label = next((l for l in existing_labels if l.name == label_name), None)
-                
+
                 if existing_label:
                     logger.info(f"Label already exists: '{label_name}'")
                     self.label_name_map[label_id] = label_name
@@ -216,6 +226,165 @@ class GitLabInjector:
                 
         except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating label '{label_name}': {e}")
+            raise
+    
+    def process_iteration(self, iteration_data: Dict[str, Any], group: Any) -> int|None:
+        """
+        Process and create an iteration.
+        
+        Args:
+            iteration_data: Dictionary containing iteration definition
+            group: GitLab group object
+            
+        Returns:
+            The ID of the created/found iteration
+        """
+        # Skip if not Premium/Ultimate
+        if not hasattr(group, 'iterations'):
+            logger.warning(f"Cannot create iteration on object: {group} (requires GitLab Premium/Ultimate)")
+            return None
+        
+        iteration_id = iteration_data.get('id')
+        iteration_title = iteration_data.get('title')
+        iteration_desc = iteration_data.get('description', '')
+        iteration_start_date = iteration_data.get('start_date')
+        iteration_due_date = iteration_data.get('due_date')
+        iteration_state = iteration_data.get('state', 'active')
+        
+        try:
+            # Search for existing iteration by title
+            existing_iterations = list(group.iterations.list(search=iteration_title))
+            iteration = next((i for i in existing_iterations if i.title == iteration_title and i.group_id == group.id), None)
+            
+            if iteration:
+                logger.info(f"Iteration already exists: '{iteration_title}' (GitLab ID: {iteration.id})")
+            else:
+                # Create iteration if it doesn't exist using GraphQL API
+                # Define the GraphQL mutation for creating an iteration
+                create_iteration_mutation = """
+                mutation createIteration($input: CreateIterationInput!) {
+                  createIteration(input: $input) {
+                    iteration {
+                      id
+                    }
+                    errors
+                  }
+                }
+                """
+                
+                # Prepare variables for the GraphQL mutation
+                variables = {
+                    "input": {
+                        "groupPath": group.full_path,
+                        "title": iteration_title,
+                        "description": iteration_desc
+                    }
+                }
+                
+                # Add dates if provided
+                if iteration_start_date:
+                    variables["input"]["startDate"] = iteration_start_date
+                if iteration_due_date:
+                    variables["input"]["dueDate"] = iteration_due_date
+
+                # Set as closed if required
+                if iteration_state == 'closed':
+                    variables["input"]["stateEvent"] = "close"
+                
+                # Execute the GraphQL mutation
+                result = self.gq.execute(create_iteration_mutation, variables)
+                
+                if result and 'createIteration' in result and 'iteration' in result['createIteration']:
+                    iteration_data = result['createIteration']['iteration']
+                    iteration_id_gitlab = iteration_data['id']
+                    logger.info(f"Created iteration: '{iteration_title}' (GitLab ID: {iteration_id_gitlab})")
+                    
+                    # Get the created iteration
+                    iterations = list(group.iterations.list())
+                    iteration = next((i for i in iterations if i.id == iteration_id_gitlab), None)
+                    
+                    if not iteration:
+                        logger.error(f"Could not find created iteration with ID {iteration_id_gitlab}")
+                        return None
+                else:
+                    errors = result.get('createIteration', {}).get('errors', [])
+                    logger.error(f"Error creating iteration '{iteration_title}' via GraphQL API: {errors}")
+                    return None
+            
+            self.iteration_id_map[iteration_id] = iteration.id
+            
+            return iteration.id
+            
+        except gitlab.GitlabListError as e:
+            if "403" in str(e):
+                logger.warning(f"Error listing iterations (may be due to missing a premium/ultimate license): {e}")
+                return None
+            logger.error(f"Error listing iterations: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error processing iteration '{iteration_title}': {e}")
+            return None
+    
+    def process_milestone(self, milestone_data: Dict[str, Any], group_or_project: Any) -> int|None:
+        """
+        Process and create a milestone.
+        
+        Args:
+            milestone_data: Dictionary containing milestone definition
+            group_or_project: GitLab group or project object
+            
+        Returns:
+            The ID of the created/found milestone
+        """
+        # Check if the parent is a group or project
+        if hasattr(group_or_project, 'milestones'):
+            milestones_manager = group_or_project.milestones
+        else:
+            logger.error(f"Cannot create milestone on object: {group_or_project}")
+            return None
+        
+        milestone_id = milestone_data.get('id')
+        milestone_title = milestone_data.get('title')
+        milestone_desc = milestone_data.get('description', '')
+        milestone_start_date = milestone_data.get('start_date')
+        milestone_due_date = milestone_data.get('due_date')
+        milestone_state = milestone_data.get('state', 'active')
+        
+        try:
+            # Search for existing milestone by title
+            existing_milestones = list(milestones_manager.list(search=milestone_title))
+            milestone = next((m for m in existing_milestones if m.title == milestone_title), None)
+            
+            if milestone:
+                logger.info(f"Milestone already exists: '{milestone_title}' (GitLab ID: {milestone.id})")
+            else:
+                # Create milestone if it doesn't exist
+                milestone_data = {
+                    'title': milestone_title,
+                    'description': milestone_desc
+                }
+                
+                # Add dates if provided
+                if milestone_start_date:
+                    milestone_data['start_date'] = milestone_start_date
+                if milestone_due_date:
+                    milestone_data['due_date'] = milestone_due_date
+                
+                milestone = milestones_manager.create(milestone_data)
+                logger.info(f"Created milestone: '{milestone_title}' (GitLab ID: {milestone.id})")
+            
+            self.milestone_id_map[milestone_id] = milestone.id
+            
+            # Update milestone state if needed
+            if milestone_state == 'closed' and milestone.state != 'closed':
+                milestone.state_event = 'close'
+                milestone.save()
+                logger.info(f"Closed milestone: '{milestone_title}' (GitLab ID: {milestone.id})")
+            
+            return milestone.id
+            
+        except gitlab.GitlabCreateError as e:
+            logger.error(f"Error creating milestone '{milestone_title}': {e}")
             raise
     
     def process_epic(self, epic_data: Dict[str, Any], group: Any) -> int|None:
@@ -337,6 +506,10 @@ class GitLabInjector:
                 # Reload project to ensure all attributes are available
                 project = self.gl.projects.get(project.id)
             
+            # Process milestones in project
+            for milestone_data in project_data.get('milestones', []):
+                self.process_milestone(milestone_data, project)
+            
             # Process issues in project
             for issue_data in project_data.get('issues', []):
                 self.process_issue(issue_data, project)
@@ -364,6 +537,8 @@ class GitLabInjector:
         issue_state = issue_data.get('state', 'opened')
         issue_labels = issue_data.get('label_ids', [])
         issue_parent_epic_id = issue_data.get('parent_epic_id', None)
+        issue_milestone_id = issue_data.get('milestone_id', None)
+        issue_iteration_id = issue_data.get('iteration_id', None)
 
         try:
             # Search for existing issue by title
@@ -373,6 +548,18 @@ class GitLabInjector:
             if issue:
                 logger.info(f"Issue already exists: '{issue_title}' (GitLab ID: {issue.id})")
             else:
+                # Set iteration if provided
+                # There is currently no API to set the iteration of an issue
+                # See https://gitlab.com/gitlab-org/gitlab/-/issues/395790
+                # So we are obliged to use the "/iteration *iteration:<iteration ID>" quick action for the time being
+                if issue_iteration_id:
+                    iteration_id = self.iteration_id_map.get(issue_iteration_id)
+                    if iteration_id:
+                        issue_desc = f"{issue_desc}\n/iteration *iteration:{iteration_id}"
+                        logger.info(f"Set iteration (GitLab ID: {iteration_id}) will be set for issue '{issue_title}'")
+                    else:
+                        logger.warning(f"Iteration id='{issue_iteration_id}' not found in iteration map")
+
                 # Create issue if it doesn't exist
                 issue = project.issues.create({
                     'title': issue_title,
@@ -409,6 +596,16 @@ class GitLabInjector:
                 else:
                     logger.warning(f"Parent epic id='{issue_parent_epic_id}' not found in epic map")
             
+            # Set milestone if provided
+            if issue_milestone_id:
+                milestone_id = self.milestone_id_map.get(issue_milestone_id)
+                if milestone_id:
+                    issue.milestone_id = milestone_id
+                    issue.save()
+                    logger.info(f"Set milestone (GitLab ID: {milestone_id}) for issue '{issue.title}'")
+                else:
+                    logger.warning(f"Milestone id='{issue_milestone_id}' not found in milestone map")
+                        
             return issue.id
 
         except gitlab.GitlabCreateError as e:
