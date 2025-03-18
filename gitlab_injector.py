@@ -194,12 +194,7 @@ class GitLabInjector:
         label_color = label_data.get('color')
         label_desc = label_data.get('description', '')
         
-        # Check if the parent is a group or project
-        if hasattr(group_or_project, 'labels'):
-            labels_manager = group_or_project.labels
-        else:
-            logger.error(f"Cannot create label on object: {group_or_project}")
-            return None
+        labels_manager = group_or_project.labels
         
         try:
             # Check if label exists
@@ -240,11 +235,7 @@ class GitLabInjector:
         Returns:
             The ID of the created/found iteration
         """
-        # Skip if not Premium/Ultimate
-        if not hasattr(group, 'iterations'):
-            logger.error(f"Cannot create iteration on object: {group} (requires GitLab Premium/Ultimate)")
-            return None
-        
+
         iteration_id = iteration_data.get('id')
         iteration_title = iteration_data.get('title')
         iteration_desc = iteration_data.get('description', '')
@@ -261,7 +252,7 @@ class GitLabInjector:
                 logger.error(f"Iteration with same name already exists: '{iteration_title}' (GitLab ID: {iteration.id})")
                 return None
             
-            # Create iteration using GraphQL API
+            # Create iteration exist using GraphQL API
             # Define the GraphQL mutation for creating an iteration
             create_iteration_mutation = """
             mutation createIteration($input: CreateIterationInput!) {
@@ -298,7 +289,6 @@ class GitLabInjector:
             
             if result and 'createIteration' in result and 'iteration' in result['createIteration']:
                 iteration_data = result['createIteration']['iteration']
-                print(iteration_data)
                 iteration_id_gitlab = iteration_data['id']
                 id = int(iteration_id_gitlab.split('/')[-1])
                 logger.info(f"Created iteration: '{iteration_title}' (GitLab ID: {id})")
@@ -332,12 +322,7 @@ class GitLabInjector:
         Returns:
             The ID of the created/found milestone
         """
-        # Check if the parent is a group or project
-        if hasattr(group_or_project, 'milestones'):
-            milestones_manager = group_or_project.milestones
-        else:
-            logger.error(f"Cannot create milestone on object: {group_or_project}")
-            return None
+        milestones_manager = group_or_project.milestones
         
         milestone_id = milestone_data.get('id')
         milestone_title = milestone_data.get('title')
@@ -395,11 +380,6 @@ class GitLabInjector:
         Returns:
             The ID of the created/found epic
         """
-        # Skip if not Premium/Ultimate
-        if not hasattr(group, 'epics'):
-            logger.error(f"Cannot create epic on object: {group}")
-            return None
-        
         epic_id = epic_data.get('id')
         epic_title = epic_data.get('title')
         epic_desc = epic_data.get('description')
