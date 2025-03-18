@@ -260,6 +260,11 @@
           "items": {
             "type": "string"
           }
+        },
+        "weight": {
+          "type": "integer",
+          "description": "Weight of the issue",
+          "minimum": 0
         }
       }
     }

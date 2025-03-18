@@ -61,6 +61,7 @@ groups:
             milestone_id: "milestone2"
             iteration_id: "iteration1"
             label_ids: ["label1"]
+            weight: 3
           - id: "issue2"
             title: "Issue 2"
             description: "Description of Issue 2"
@@ -68,6 +69,7 @@ groups:
             parent_epic_id: "epic2"
             milestone_id: "milestone1"
             label_ids: ["label1", "label2"]
+            weight: 8
           - id: "issue3"
             title: "Issue 3"
             description: "Description of Issue 3"
@@ -75,6 +77,10 @@ groups:
             parent_epic_id: "epic1"
             milestone_id: "milestone2"
             iteration_id: "iteration1"
+            weight: 5
+          - id: "issue4"
+            title: "Issue 4"
+            description: "Description of Issue 4"
       - name: "Project 2"
         description: "Description of Project 2"
     subgroups:
@@ -124,6 +130,7 @@ groups:
                     milestone_id: "milestone3"
                     iteration_id: "iteration2"
                     label_ids: ["label2"]
+                    weight: 2
       - name: "Subgroup 12"
         description: "Description of Subgroup 12"
   - name: "Group 2"

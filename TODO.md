@@ -1,5 +1,4 @@
 - add assignee to issue
-- add weight to issue
 - add members to a group
 - add private/public to groups and projects
 - add related issues

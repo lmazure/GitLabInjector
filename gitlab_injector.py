@@ -539,6 +539,7 @@ class GitLabInjector:
         issue_parent_epic_id = issue_data.get('parent_epic_id', None)
         issue_milestone_id = issue_data.get('milestone_id', None)
         issue_iteration_id = issue_data.get('iteration_id', None)
+        issue_weight = issue_data.get('weight', None)
 
         try:
             # Search for existing issue by title
@@ -567,6 +568,12 @@ class GitLabInjector:
                 })
                 logger.info(f"Created issue: '{issue_title}' (GitLab ID: {issue.id})")
             self.issue_id_map[issue_id] = issue.id
+
+            # Set weight if provided
+            if issue_weight is not None:
+                issue.weight = issue_weight
+                issue.save()
+                logger.info(f"Set weight ({issue_weight}) for issue '{issue.title}'")
 
             # Update issue state if needed
             if issue_state == 'closed' and issue.state != 'closed':
