@@ -241,7 +241,7 @@ class GitLabInjector:
         """
         # Skip if not Premium/Ultimate
         if not hasattr(group, 'iterations'):
-            logger.warning(f"Cannot create iteration on object: {group} (requires GitLab Premium/Ultimate)")
+            logger.error(f"Cannot create iteration on object: {group} (requires GitLab Premium/Ultimate)")
             return None
         
         iteration_id = iteration_data.get('id')
@@ -317,7 +317,7 @@ class GitLabInjector:
             
         except gitlab.GitlabListError as e:
             if "403" in str(e):
-                logger.warning(f"Error listing iterations (may be due to missing a premium/ultimate license): {e}")
+                logger.error(f"Error listing iterations (may be due to missing a premium/ultimate license): {e}")
                 return None
             logger.error(f"Error listing iterations: {e}")
             raise
@@ -414,17 +414,16 @@ class GitLabInjector:
             # Search for existing epic by title
             existing_epics = list(group.epics.list(search=epic_title))
             epic = next((e for e in existing_epics if e.title == epic_title), None)
-            
             if epic:
-                logger.info(f"Epic already exists: '{epic_title}' (GitLab ID: {epic.id})")
-            else:
-                # Create epic if it doesn't exist
-                epic = group.epics.create({
-                    'title': epic_title,
-                    'description': epic_desc,
-                    'state': epic_state
-                })
-                logger.info(f"Created epic: '{epic_title}' (GitLab ID: {epic.id})")
+                logger.warning(f"Epic with same title already exists: '{epic_title}' (GitLab ID: {epic.id})")
+
+            # Create epic
+            epic = group.epics.create({
+                'title': epic_title,
+                'description': epic_desc,
+                'state': epic_state
+            })
+            logger.info(f"Created epic: '{epic_title}' (GitLab ID: {epic.id})")
             self.epic_id_map[epic_id] = epic.id
             
             # Update epic state if needed
@@ -443,7 +442,7 @@ class GitLabInjector:
                     except Exception as e:
                         logger.error(f"Error adding label '{self.label_name_map[label_id]}' to epic: {e}")
                 else:
-                    logger.warning(f"Label id='{label_id}' not found in label map")
+                    logger.error(f"Label id='{label_id}' not found in label map")
             
             # Set parent epic if provided
             if epic_epic_parent_id:
@@ -453,13 +452,13 @@ class GitLabInjector:
                     epic.save()
                     logger.info(f"Set parent epic (GitLab ID: {parent_epic}) for epic '{epic.title}'")
                 else:
-                    logger.warning(f"Parent epic id='{epic_epic_parent_id}' not found in epic map")
+                    logger.error(f"Parent epic id='{epic_epic_parent_id}' not found in epic map")
 
             return epic.id
 
         except gitlab.GitlabListError as e:
             if "403" in str(e):
-                logger.warning(f"Error listing epics (may be due to missing a premium/ultimate license): {e}")
+                logger.error(f"Error listing epics (may be due to missing a premium/ultimate license): {e}")
                 return None
             logger.error(f"Error listing epics: {e}")
             raise
@@ -547,26 +546,26 @@ class GitLabInjector:
             issue = next((i for i in existing_issues if i.title == issue_title), None)
             
             if issue:
-                logger.info(f"Issue already exists: '{issue_title}' (GitLab ID: {issue.id})")
-            else:
-                # Set iteration if provided
-                # There is currently no API to set the iteration of an issue
-                # See https://gitlab.com/gitlab-org/gitlab/-/issues/395790
-                # So we are obliged to use the "/iteration *iteration:<iteration ID>" quick action for the time being
-                if issue_iteration_id:
-                    iteration_id = self.iteration_id_map.get(issue_iteration_id)
-                    if iteration_id:
-                        issue_desc = f"{issue_desc}\n/iteration *iteration:{iteration_id}"
-                        logger.info(f"Set iteration (GitLab ID: {iteration_id}) will be set for issue '{issue_title}'")
-                    else:
-                        logger.warning(f"Iteration id='{issue_iteration_id}' not found in iteration map")
+                logger.info(f"Issue already exists with same title: '{issue_title}' (GitLab ID: {issue.id})")
 
-                # Create issue if it doesn't exist
-                issue = project.issues.create({
-                    'title': issue_title,
-                    'description': issue_desc
-                })
-                logger.info(f"Created issue: '{issue_title}' (GitLab ID: {issue.id})")
+            # Set iteration if provided
+            # There is currently no API to set the iteration of an issue
+            # See https://gitlab.com/gitlab-org/gitlab/-/issues/395790
+            # So we are obliged to use the "/iteration *iteration:<iteration ID>" quick action for the time being
+            if issue_iteration_id:
+                iteration_id = self.iteration_id_map.get(issue_iteration_id)
+                if iteration_id:
+                    issue_desc = f"{issue_desc}\n/iteration *iteration:{iteration_id}"
+                    logger.info(f"Set iteration (GitLab ID: {iteration_id}) will be set for issue '{issue_title}'")
+                else:
+                    logger.error(f"Iteration id='{issue_iteration_id}' not found in iteration map")
+
+            # Create issue
+            issue = project.issues.create({
+                'title': issue_title,
+                'description': issue_desc
+            })
+            logger.info(f"Created issue: '{issue_title}' (GitLab ID: {issue.id})")
             self.issue_id_map[issue_id] = issue.id
 
             # Set weight if provided
@@ -591,7 +590,7 @@ class GitLabInjector:
                     except Exception as e:
                         logger.error(f"Error adding label '{self.label_name_map[label_id]}' to issue: {e}")
                 else:
-                    logger.warning(f"Label id='{label_id}' not found in label map")
+                    logger.error(f"Label id='{label_id}' not found in label map")
 
             # Set parent epic if provided
             if issue_parent_epic_id:
@@ -601,7 +600,7 @@ class GitLabInjector:
                     issue.save()
                     logger.info(f"Set parent epic (GitLab ID: {parent_epic}) for issue '{issue.title}'")
                 else:
-                    logger.warning(f"Parent epic id='{issue_parent_epic_id}' not found in epic map")
+                    logger.error(f"Parent epic id='{issue_parent_epic_id}' not found in epic map")
             
             # Set milestone if provided
             if issue_milestone_id:
@@ -611,7 +610,7 @@ class GitLabInjector:
                     issue.save()
                     logger.info(f"Set milestone (GitLab ID: {milestone_id}) for issue '{issue.title}'")
                 else:
-                    logger.warning(f"Milestone id='{issue_milestone_id}' not found in milestone map")
+                    logger.error(f"Milestone id='{issue_milestone_id}' not found in milestone map")
                         
             return issue.id
 
