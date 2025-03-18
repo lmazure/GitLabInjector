@@ -96,9 +96,9 @@ class GitLabInjector:
             logger.error(f"An error occurred: {e}\n{traceback.format_exc()}")
             sys.exit(1)
 
-    def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int:
+    def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int|None:
         """
-        Process and create a group or subgroup.
+        Process and create a group.
         
         Args:
             group_data: Dictionary containing group definition
@@ -121,9 +121,10 @@ class GitLabInjector:
                 full_path = f"{parent_group.full_path}/{group_path}"
                 try:
                     group = self.gl.groups.get(full_path)
-                    logger.info(f"Subgroup already exists: {full_path} (GitLab ID: {group.id})")
+                    logger.error(f"Group already exists: {full_path} (GitLab ID: {group.id})")
+                    return None
                 except gitlab.GitlabGetError:
-                    # Create subgroup
+                    # Create group
                     group = self.gl.groups.create({
                         'name': group_name,
                         'path': group_path,
@@ -131,11 +132,12 @@ class GitLabInjector:
                         'description': group_desc,
                         'visibility': 'private'  # Adjust as needed
                     })
-                    logger.info(f"Created subgroup: {full_path} (GitLab ID: {group.id})")
+                    logger.info(f"Created group: {full_path} (GitLab ID: {group.id})")
             else:
                 try:
                     group = self.gl.groups.get(group_path)
-                    logger.info(f"Top-level group already exists: {group_path} (GitLab ID: {group.id})")
+                    logger.error(f"Top-level group already exists: {group_path} (GitLab ID: {group.id})")
+                    return None
                 except gitlab.GitlabGetError:
                     # Create top-level group
                     group = self.gl.groups.create({
@@ -207,9 +209,8 @@ class GitLabInjector:
                 existing_label = next((l for l in existing_labels if l.name == label_name), None)
 
                 if existing_label:
-                    logger.info(f"Label already exists: '{label_name}'")
-                    self.label_name_map[label_id] = label_name
-                    return existing_label.id
+                    logger.error(f"Label already exists: '{label_name}'")
+                    return None
             except (gitlab.GitlabGetError, StopIteration):
                 existing_label = None
             
@@ -257,63 +258,58 @@ class GitLabInjector:
             iteration = next((i for i in existing_iterations if i.title == iteration_title and i.group_id == group.id), None)
             
             if iteration:
-                logger.info(f"Iteration already exists: '{iteration_title}' (GitLab ID: {iteration.id})")
-            else:
-                # Create iteration if it doesn't exist using GraphQL API
-                # Define the GraphQL mutation for creating an iteration
-                create_iteration_mutation = """
-                mutation createIteration($input: CreateIterationInput!) {
-                  createIteration(input: $input) {
-                    iteration {
-                      id
-                    }
-                    errors
-                  }
+                logger.error(f"Iteration with same name already exists: '{iteration_title}' (GitLab ID: {iteration.id})")
+                return None
+            
+            # Create iteration using GraphQL API
+            # Define the GraphQL mutation for creating an iteration
+            create_iteration_mutation = """
+            mutation createIteration($input: CreateIterationInput!) {
+                createIteration(input: $input) {
+                iteration {
+                    id
                 }
-                """
-                
-                # Prepare variables for the GraphQL mutation
-                variables = {
-                    "input": {
-                        "groupPath": group.full_path,
-                        "title": iteration_title,
-                        "description": iteration_desc
-                    }
+                errors
                 }
-                
-                # Add dates if provided
-                if iteration_start_date:
-                    variables["input"]["startDate"] = iteration_start_date
-                if iteration_due_date:
-                    variables["input"]["dueDate"] = iteration_due_date
+            }
+            """
+            
+            # Prepare variables for the GraphQL mutation
+            variables = {
+                "input": {
+                    "groupPath": group.full_path,
+                    "title": iteration_title,
+                    "description": iteration_desc
+                }
+            }
+            
+            # Add dates if provided
+            if iteration_start_date:
+                variables["input"]["startDate"] = iteration_start_date
+            if iteration_due_date:
+                variables["input"]["dueDate"] = iteration_due_date
 
-                # Set as closed if required
-                if iteration_state == 'closed':
-                    variables["input"]["stateEvent"] = "close"
-                
-                # Execute the GraphQL mutation
-                result = self.gq.execute(create_iteration_mutation, variables)
-                
-                if result and 'createIteration' in result and 'iteration' in result['createIteration']:
-                    iteration_data = result['createIteration']['iteration']
-                    iteration_id_gitlab = iteration_data['id']
-                    logger.info(f"Created iteration: '{iteration_title}' (GitLab ID: {iteration_id_gitlab})")
-                    
-                    # Get the created iteration
-                    iterations = list(group.iterations.list())
-                    iteration = next((i for i in iterations if i.id == iteration_id_gitlab), None)
-                    
-                    if not iteration:
-                        logger.error(f"Could not find created iteration with ID {iteration_id_gitlab}")
-                        return None
-                else:
-                    errors = result.get('createIteration', {}).get('errors', [])
-                    logger.error(f"Error creating iteration '{iteration_title}' via GraphQL API: {errors}")
-                    return None
+            # Set as closed if required
+            if iteration_state == 'closed':
+                variables["input"]["stateEvent"] = "close"
             
-            self.iteration_id_map[iteration_id] = iteration.id
+            # Execute the GraphQL mutation
+            result = self.gq.execute(create_iteration_mutation, variables)
             
-            return iteration.id
+            if result and 'createIteration' in result and 'iteration' in result['createIteration']:
+                iteration_data = result['createIteration']['iteration']
+                print(iteration_data)
+                iteration_id_gitlab = iteration_data['id']
+                id = int(iteration_id_gitlab.split('/')[-1])
+                logger.info(f"Created iteration: '{iteration_title}' (GitLab ID: {id})")
+            else:
+                errors = result.get('createIteration', {}).get('errors', [])
+                logger.error(f"Error creating iteration '{iteration_title}' via GraphQL API: {errors}")
+                return None
+            
+            self.iteration_id_map[iteration_id] = id
+            
+            return id
             
         except gitlab.GitlabListError as e:
             if "403" in str(e):
@@ -356,22 +352,23 @@ class GitLabInjector:
             milestone = next((m for m in existing_milestones if m.title == milestone_title), None)
             
             if milestone:
-                logger.info(f"Milestone already exists: '{milestone_title}' (GitLab ID: {milestone.id})")
-            else:
-                # Create milestone if it doesn't exist
-                milestone_data = {
-                    'title': milestone_title,
-                    'description': milestone_desc
-                }
-                
-                # Add dates if provided
-                if milestone_start_date:
-                    milestone_data['start_date'] = milestone_start_date
-                if milestone_due_date:
-                    milestone_data['due_date'] = milestone_due_date
-                
-                milestone = milestones_manager.create(milestone_data)
-                logger.info(f"Created milestone: '{milestone_title}' (GitLab ID: {milestone.id})")
+                logger.error(f"Milestone with same name already exists: '{milestone_title}' (GitLab ID: {milestone.id})")
+                return None
+
+            # Create milestone
+            milestone_data = {
+                'title': milestone_title,
+                'description': milestone_desc
+            }
+            
+            # Add dates if provided
+            if milestone_start_date:
+                milestone_data['start_date'] = milestone_start_date
+            if milestone_due_date:
+                milestone_data['due_date'] = milestone_due_date
+            
+            milestone = milestones_manager.create(milestone_data)
+            logger.info(f"Created milestone: '{milestone_title}' (GitLab ID: {milestone.id})")
             
             self.milestone_id_map[milestone_id] = milestone.id
             
@@ -487,23 +484,23 @@ class GitLabInjector:
             existing_project = next((p for p in existing_projects if p.name == project_name), None)
             
             if existing_project:
-                logger.info(f"Project already exists: '{project_name}' (GitLab ID: {existing_project.id})")
-                project = self.gl.projects.get(existing_project.id)
-            else:
-                # Create project if it doesn't exist
-                project = self.gl.projects.create({
-                    'name': project_name,
-                    'namespace_id': group.id,
-                    'description': project_desc,
-                    'visibility': 'private'  # Adjust as needed
-                })
-                logger.info(f"Created project: '{project_name}' (GitLab ID: {project.id})")
-                
-                # Give GitLab some time to initialize the project
-                time.sleep(1)
-                
-                # Reload project to ensure all attributes are available
-                project = self.gl.projects.get(project.id)
+                logger.error(f"Project with same name already exists: '{project_name}' (GitLab ID: {existing_project.id})")
+                return None
+
+            # Create project
+            project = self.gl.projects.create({
+                'name': project_name,
+                'namespace_id': group.id,
+                'description': project_desc,
+                'visibility': 'private'  # Adjust as needed
+            })
+            logger.info(f"Created project: '{project_name}' (GitLab ID: {project.id})")
+            
+            # Give GitLab some time to initialize the project
+            time.sleep(1)
+            
+            # Reload project to ensure all attributes are available
+            project = self.gl.projects.get(project.id)
             
             # Process milestones in project
             for milestone_data in project_data.get('milestones', []):
