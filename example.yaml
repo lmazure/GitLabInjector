@@ -1,6 +1,16 @@
+users:
+  - id: "user1"
+    username: "@me"
+  - id: "user2"
+    username: "@lmzr"
 groups:
   - name: "Group 1"
     description: "Description of Group 1"
+    members:
+      - user_id: "user1"
+        role: "owner"
+      - user_id: "user2"
+        role: "maintainer"
     labels:
       - id: "label1"
         name: "Bug"
@@ -45,6 +55,11 @@ groups:
     projects:
       - name: "Project 1"
         description: "Description of Project 1"
+        members:
+          - user_id: "user1"
+            role: "owner"
+          - user_id: "user2"
+            role: "developer"
         milestones:
           - id: "milestone2"
             title: "Project Milestone"
@@ -61,6 +76,7 @@ groups:
             milestone_id: "milestone2"
             iteration_id: "iteration1"
             label_ids: ["label1"]
+            assignee_ids: ["user1"]
             weight: 3
           - id: "issue2"
             title: "Issue 2"
@@ -69,6 +85,7 @@ groups:
             parent_epic_id: "epic2"
             milestone_id: "milestone1"
             label_ids: ["label1", "label2"]
+            assignee_ids: ["user2"]
             weight: 8
           - id: "issue3"
             title: "Issue 3"
@@ -77,6 +94,7 @@ groups:
             parent_epic_id: "epic1"
             milestone_id: "milestone2"
             iteration_id: "iteration1"
+            assignee_ids: ["user1", "user2"]
             weight: 5
           - id: "issue4"
             title: "Issue 4"

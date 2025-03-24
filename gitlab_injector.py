@@ -36,7 +36,8 @@ class GitLabInjector:
         """
         self.gl = gitlab.Gitlab(url=gitlab_url, private_token=private_token)
         self.gl.auth()
-        logger.info(f"Connected to GitLab as {self.gl.user.username if self.gl.user else 'unknown'}")
+        self.current_user = self.gl.user.username if self.gl.user else "unknown" # TBD rather stop here and raise an error
+        logger.info(f"Connected to GitLab as {self.current_user}")
         
         self.gq = gitlab.GraphQL(gitlab_url, token=private_token)
 
@@ -56,6 +57,7 @@ class GitLabInjector:
         self.issue_id_map = {}      # Maps YAML issue IDs to GitLab issue IDs
         self.iteration_id_map = {}  # Maps YAML iteration IDs to GitLab iteration IDs
         self.milestone_id_map = {}  # Maps YAML milestone IDs to GitLab milestone IDs
+        self.user_id_map = {}       # Maps YAML user IDs to GitLab user IDs
     
     def process_yaml(self, yaml_file: str):
         """
@@ -82,6 +84,11 @@ class GitLabInjector:
             except jsonschema.ValidationError as e:
                 logger.error(f"YAML validation failed: {e}")
                 sys.exit(1)
+            
+            # Process users first
+            if 'users' in data:
+                for user_data in data.get('users', []):
+                    self.process_user(user_data)
         
             # Process top-level groups
             for group_data in data.get('groups', []):
@@ -95,6 +102,48 @@ class GitLabInjector:
         except Exception as e:
             logger.error(f"An error occurred: {e}\n{traceback.format_exc()}")
             sys.exit(1)
+
+    def process_user(self, user_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Process user data and map to GitLab users.
+        
+        Args:
+            user_data: Dictionary containing user definition
+            
+        Returns:
+            The username of the user or None if not found
+        """
+        user_id = user_data.get('id')
+        username = user_data.get('username')
+        
+        if not username:
+            logger.error(f"Username is missing for user ID '{user_id}'")
+            return None
+        
+        # Handle special case for @me
+        if username == "@me":
+            self.user_id_map[user_id] = self.current_user
+            logger.info(f"Mapped user ID '{user_id}' to current user '{self.current_user}'")
+            return self.current_user
+        
+        # Remove @ from username for GitLab API calls
+        gitlab_username = username[1:] if username.startswith('@') else username  #TBD rather assert that the username starts with @
+        
+        try:
+            # Try to find the user in GitLab
+            users_list = self.gl.users.list(username=gitlab_username)
+            users = list(users_list)  # Convert RESTObjectList to a regular list
+            if users and len(users) > 0: #TBD assert that there is only one user
+                user = users[0]
+                self.user_id_map[user_id] = user.username
+                logger.info(f"Found GitLab user '{user.username}' for user ID '{user_id}'")
+                return user.username
+            else:
+                logger.warning(f"User '{username}' not found in GitLab. References to this user will be ignored.")
+                return None
+        except gitlab.GitlabError as e:
+            logger.error(f"Error finding user '{username}': {e}")
+            return None
 
     def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int|None:
         """
@@ -148,6 +197,10 @@ class GitLabInjector:
                     })
                     logger.info(f"Created top-level group: {group_path} (GitLab ID: {group.id})")
             
+            # Process members at group level
+            for member_data in group_data.get('members', []):
+                self.process_member(member_data, group)
+                
             # Process labels at group level
             for label_data in group_data.get('labels', []):
                 self.process_label(label_data, group)
@@ -482,6 +535,10 @@ class GitLabInjector:
             # Reload project to ensure all attributes are available
             project = self.gl.projects.get(project.id)
             
+            # Process members in project
+            for member_data in project_data.get('members', []):
+                self.process_member(member_data, project)
+                
             # Process milestones in project
             for milestone_data in project_data.get('milestones', []):
                 self.process_milestone(milestone_data, project)
@@ -495,6 +552,66 @@ class GitLabInjector:
         except gitlab.GitlabCreateError as e:
             logger.error(f"Error creating project '{project_name}': {e}")
             raise
+    
+    def process_member(self, member_data: Dict[str, Any], group_or_project: Any) -> None:
+        """
+        Process and add a member to a group or project.
+        
+        Args:
+            member_data: Dictionary containing member definition
+            group_or_project: GitLab group or project object
+        """
+        user_id = member_data.get('user_id') # asser that it is present
+        role = member_data.get('role', 'guest')  # Default to guest if role not specified # TBD there should be no default, assert that it is present
+        
+        # Map role to GitLab access level
+        access_level_map = {
+            'guest': 10,      # AccessLevel.GUEST
+            'planner': 20,    # AccessLevel.REPORTER (GitLab API doesn't have a specific planner level yet) # TBD this is wrong
+            'reporter': 20,   # AccessLevel.REPORTER
+            'developer': 30,  # AccessLevel.DEVELOPER
+            'maintainer': 40, # AccessLevel.MAINTAINER
+            'owner': 50       # AccessLevel.OWNER
+        }
+        
+        access_level = access_level_map.get(role, 10)  # Default to GUEST
+        
+        if user_id in self.user_id_map:
+            username = self.user_id_map[user_id]
+            
+            # Skip if trying to add current user as they already have access
+            if username == self.current_user:
+                logger.info(f"Skipping adding current user '{username}' as member")
+                return
+            
+            try:
+                # Try to find the user in GitLab
+                users_list = self.gl.users.list(username=username)
+                users = list(users_list)  # Convert RESTObjectList to a regular list
+                if users and len(users) > 0:
+                    user = users[0]
+                    try:
+                        # Check if user is already a member
+                        existing_members = list(group_or_project.members.list())
+                        is_member = any(m.username == username for m in existing_members)
+                        
+                        if not is_member:
+                            # Add user as member
+                            group_or_project.members.create({
+                                'user_id': user.id,
+                                'access_level': access_level
+                            })
+                            logger.info(f"Added user '{username}' as {role} to {group_or_project.name}")
+                        else:
+                            logger.info(f"User '{username}' is already a member of {group_or_project.name}")
+                    except gitlab.GitlabCreateError as e:
+                        logger.error(f"Error adding member '{username}': {e}")
+                else:
+                    logger.warning(f"User '{username}' not found in GitLab. Cannot add as member.")
+            except gitlab.GitlabError as e:
+                logger.error(f"Error finding user '{username}': {e}")
+        else:
+            logger.error(f"User ID '{user_id}' not found in user map")
     
     def process_issue(self, issue_data: Dict[str, Any], project: Any) -> int:
         """
@@ -516,6 +633,7 @@ class GitLabInjector:
         issue_milestone_id = issue_data.get('milestone_id', None)
         issue_iteration_id = issue_data.get('iteration_id', None)
         issue_weight = issue_data.get('weight', None)
+        issue_assignee_ids = issue_data.get('assignee_ids', [])
 
         try:
             # Search for existing issue by title
@@ -588,6 +706,32 @@ class GitLabInjector:
                     logger.info(f"Set milestone (GitLab ID: {milestone_id}) for issue '{issue.title}'")
                 else:
                     logger.error(f"Milestone id='{issue_milestone_id}' not found in milestone map")
+            
+            # Set assignees if provided
+            if issue_assignee_ids:
+                assignee_ids = []
+                for assignee_id in issue_assignee_ids:
+                    if assignee_id in self.user_id_map:
+                        username = self.user_id_map[assignee_id]
+                        try:
+                            # Find user by username
+                            users_list = self.gl.users.list(username=username)
+                            users = list(users_list)  # Convert RESTObjectList to a regular list
+                            if users and len(users) > 0:
+                                user = users[0]
+                                assignee_ids.append(user.id)
+                                logger.info(f"Will assign user '{username}' to issue '{issue_title}'")
+                            else:
+                                logger.warning(f"User '{username}' not found in GitLab. Cannot assign to issue.")
+                        except gitlab.GitlabError as e:
+                            logger.error(f"Error finding user '{username}': {e}")
+                    else:
+                        logger.error(f"User ID '{assignee_id}' not found in user map")
+                
+                if assignee_ids:
+                    issue.assignee_ids = assignee_ids
+                    issue.save()
+                    logger.info(f"Assigned users to issue '{issue_title}'")
                         
             return issue.id
 

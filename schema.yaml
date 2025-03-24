@@ -11,6 +11,13 @@
       "items": {
         "$ref": "#/definitions/group"
       }
+    },
+    "users": {
+      "type": "array",
+      "description": "List of users",
+      "items": {
+        "$ref": "#/definitions/user"
+      }
     }
   },
   "definitions": {
@@ -66,6 +73,13 @@
           "description": "List of subgroups",
           "items": {
             "$ref": "#/definitions/group"
+          }
+        },
+        "members": {
+          "type": "array",
+          "description": "List of members with their roles",
+          "items": {
+            "$ref": "#/definitions/member"
           }
         }
       }
@@ -218,6 +232,13 @@
           "items": {
             "$ref": "#/definitions/issue"
           }
+        },
+        "members": {
+          "type": "array",
+          "description": "List of members with their roles",
+          "items": {
+            "$ref": "#/definitions/member"
+          }
         }
       }
     },
@@ -261,10 +282,47 @@
             "type": "string"
           }
         },
+        "assignee_ids": {
+          "type": "array",
+          "description": "List of user IDs to assign to this issue",
+          "items": {
+            "type": "string"
+          }
+        },
         "weight": {
           "type": "integer",
           "description": "Weight of the issue",
           "minimum": 0
+        }
+      }
+    },
+    "user": {
+      "type": "object",
+      "required": ["id", "username"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user within this YAML"
+        },
+        "username": {
+          "type": "string",
+          "description": "GitLab username (starts with @), @me indicates the owner of the token used to inject the data",
+          "pattern": "^@[\\w.-]+$"
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "required": ["user_id", "role"],
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "description": "ID of the user who is a member"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user in the group or project",
+          "enum": ["guest", "planner", "reporter", "developer", "maintainer", "owner"]
         }
       }
     }
