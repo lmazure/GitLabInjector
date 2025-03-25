@@ -36,7 +36,10 @@ class GitLabInjector:
         """
         self.gl = gitlab.Gitlab(url=gitlab_url, private_token=private_token)
         self.gl.auth()
-        self.current_user = self.gl.user.username if self.gl.user else "unknown" # TBD rather stop here and raise an error
+        if not self.gl.user:
+            logger.error("No GitLab user associated to the provided token")
+            sys.exit(1)
+        self.current_user = self.gl.user.username
         logger.info(f"Connected to GitLab as {self.current_user}")
         
         self.gq = gitlab.GraphQL(gitlab_url, token=private_token)
@@ -115,10 +118,9 @@ class GitLabInjector:
         """
         user_id = user_data.get('id')
         username = user_data.get('username')
-        
-        if not username:
-            logger.error(f"Username is missing for user ID '{user_id}'")
-            return None
+        assert user_id is not None, "User ID is missing for user"
+        assert username is not None, f"Username is missing for user ID '{user_id}'"
+        assert username.startswith('@'), f"Username '{username}' is not a valid GitLab username"
         
         # Handle special case for @me
         if username == "@me":
@@ -127,25 +129,26 @@ class GitLabInjector:
             return self.current_user
         
         # Remove @ from username for GitLab API calls
-        gitlab_username = username[1:] if username.startswith('@') else username  #TBD rather assert that the username starts with @
+        gitlab_username = username[1:]
         
         try:
             # Try to find the user in GitLab
             users_list = self.gl.users.list(username=gitlab_username)
             users = list(users_list)  # Convert RESTObjectList to a regular list
-            if users and len(users) > 0: #TBD assert that there is only one user
+            if users and len(users) > 0:
+                assert len(users) == 1, f"Multiple users found for username '{username}'"
                 user = users[0]
                 self.user_id_map[user_id] = user.username
                 logger.info(f"Found GitLab user '{user.username}' for user ID '{user_id}'")
                 return user.username
             else:
-                logger.warning(f"User '{username}' not found in GitLab. References to this user will be ignored.")
+                logger.error(f"User '{username}' not found in GitLab. References to this user will be ignored.")
                 return None
         except gitlab.GitlabError as e:
             logger.error(f"Error finding user '{username}': {e}")
             return None
 
-    def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> int|None:
+    def process_group(self, group_data: Dict[str, Any], parent_id: Optional[int] = None) -> Optional[int]:
         """
         Process and create a group.
         
@@ -157,8 +160,9 @@ class GitLabInjector:
             The ID of the created/found group
         """
         group_name = group_data.get('name')
-        assert group_name, "Group name is missing"
         group_desc = group_data.get('description', '')
+        assert group_name is not None, "Group name is missing"
+        assert group_desc is not None, "Group description is missing"
         
         # Group path must be URL friendly
         group_path = group_name.lower().replace(' ', '-')
@@ -231,7 +235,7 @@ class GitLabInjector:
             logger.error(f"Error creating group {group_name}: {e}")
             raise
     
-    def process_label(self, label_data: Dict[str, Any], group_or_project: Any) -> int|None:
+    def process_label(self, label_data: Dict[str, Any], group_or_project: Any) -> Optional[int]:
         """
         Process and create a label.
         
@@ -246,6 +250,10 @@ class GitLabInjector:
         label_name = label_data.get('name')
         label_color = label_data.get('color')
         label_desc = label_data.get('description', '')
+        assert label_id is not None, "Label ID is missing"
+        assert label_name is not None, "Label name is missing"
+        assert label_color is not None, "Label color is missing"
+        assert label_desc is not None, "Label description is missing"
         
         labels_manager = group_or_project.labels
         
@@ -277,7 +285,7 @@ class GitLabInjector:
             logger.error(f"Error creating label '{label_name}': {e}")
             raise
     
-    def process_iteration(self, iteration_data: Dict[str, Any], group: Any) -> int|None:
+    def process_iteration(self, iteration_data: Dict[str, Any], group: Any) -> Optional[int]:
         """
         Process and create an iteration.
         
@@ -295,6 +303,12 @@ class GitLabInjector:
         iteration_start_date = iteration_data.get('start_date')
         iteration_due_date = iteration_data.get('due_date')
         iteration_state = iteration_data.get('state', 'active')
+        assert iteration_id is not None, "Iteration ID is missing"
+        assert iteration_title is not None, "Iteration title is missing"
+        assert iteration_desc is not None, "Iteration description is missing"
+        assert iteration_start_date is not None, "Iteration start date is missing"
+        assert iteration_due_date is not None, "Iteration due date is missing"
+        assert iteration_state is not None, "Iteration state is missing"
         
         try:
             # Search for existing iteration by title
@@ -305,7 +319,7 @@ class GitLabInjector:
                 logger.error(f"Iteration with same name already exists: '{iteration_title}' (GitLab ID: {iteration.id})")
                 return None
             
-            # Create iteration exist using GraphQL API
+            # Create iteration using GraphQL API
             # Define the GraphQL mutation for creating an iteration
             create_iteration_mutation = """
             mutation createIteration($input: CreateIterationInput!) {
@@ -364,7 +378,7 @@ class GitLabInjector:
             logger.error(f"Error processing iteration '{iteration_title}': {e}")
             return None
     
-    def process_milestone(self, milestone_data: Dict[str, Any], group_or_project: Any) -> int|None:
+    def process_milestone(self, milestone_data: Dict[str, Any], group_or_project: Any) -> Optional[int]:
         """
         Process and create a milestone.
         
@@ -383,6 +397,12 @@ class GitLabInjector:
         milestone_start_date = milestone_data.get('start_date')
         milestone_due_date = milestone_data.get('due_date')
         milestone_state = milestone_data.get('state', 'active')
+        assert milestone_id is not None, "Milestone ID is missing"
+        assert milestone_title is not None, "Milestone title is missing"
+        assert milestone_desc is not None, "Milestone description is missing"
+        assert milestone_start_date is not None, "Milestone start date is missing"
+        assert milestone_due_date is not None, "Milestone due date is missing"
+        assert milestone_state is not None, "Milestone state is missing"
         
         try:
             # Search for existing milestone by title
@@ -422,7 +442,7 @@ class GitLabInjector:
             logger.error(f"Error creating milestone '{milestone_title}': {e}")
             raise
     
-    def process_epic(self, epic_data: Dict[str, Any], group: Any) -> int|None:
+    def process_epic(self, epic_data: Dict[str, Any], group: Any) -> Optional[int]:
         """
         Process and create an epic.
         
@@ -439,6 +459,12 @@ class GitLabInjector:
         epic_state = epic_data.get('state', 'opened')
         epic_labels = epic_data.get('label_ids', [])
         epic_epic_parent_id = epic_data.get('parent_epic_id', None)
+        assert epic_id is not None, "Epic ID is missing"
+        assert epic_title is not None, "Epic title is missing"
+        assert epic_desc is not None, "Epic description is missing"
+        assert epic_state is not None, "Epic state is missing"
+        assert epic_labels is not None, "Epic labels are missing"
+        assert epic_epic_parent_id is not None, "Epic parent epic ID is missing"
         
         try:
             # Search for existing epic by title
@@ -496,7 +522,7 @@ class GitLabInjector:
             logger.error(f"Error creating epic '{epic_title}': {e}")
             raise
 
-    def process_project(self, project_data: Dict[str, Any], group: Any) -> int|None:
+    def process_project(self, project_data: Dict[str, Any], group: Any) -> Optional[int]:
         """
         Process and create a project.
         
@@ -508,8 +534,9 @@ class GitLabInjector:
             The ID of the created/found project
         """
         project_name = project_data.get('name')
-        assert project_name, "Project name is missing"
         project_desc = project_data.get('description', '')
+        assert project_name is not None, "Project name is missing"
+        assert project_desc is not None, "Project description is missing"
         
         try:
             # Check if project exists in group
@@ -561,53 +588,56 @@ class GitLabInjector:
             member_data: Dictionary containing member definition
             group_or_project: GitLab group or project object
         """
-        user_id = member_data.get('user_id') # asser that it is present
-        role = member_data.get('role', 'guest')  # Default to guest if role not specified # TBD there should be no default, assert that it is present
+        user_id = member_data.get('user_id')
+        role = member_data.get('role')
+        assert user_id is not None
+        assert role is not None
         
         # Map role to GitLab access level
         access_level_map = {
-            'guest': 10,      # AccessLevel.GUEST
-            'planner': 20,    # AccessLevel.REPORTER (GitLab API doesn't have a specific planner level yet) # TBD this is wrong
-            'reporter': 20,   # AccessLevel.REPORTER
-            'developer': 30,  # AccessLevel.DEVELOPER
-            'maintainer': 40, # AccessLevel.MAINTAINER
-            'owner': 50       # AccessLevel.OWNER
+            'guest': 10,
+            'planner': 15,
+            'reporter': 20,
+            'developer': 30,
+            'maintainer': 40,
+            'owner': 50
         }
         
-        access_level = access_level_map.get(role, 10)  # Default to GUEST
+        access_level = access_level_map.get(role)
+        assert access_level is not None, f"Invalid role '{role}'"
         
         if user_id in self.user_id_map:
             username = self.user_id_map[user_id]
             
-            # Skip if trying to add current user as they already have access
-            if username == self.current_user:
-                logger.info(f"Skipping adding current user '{username}' as member")
-                return
+            # TBD what do we do with this?
+            ## Skip if trying to add current user as they already have access
+            #if username == self.current_user:
+            #    logger.info(f"Skipping adding current user '{username}' as member")
+            #    return
             
             try:
                 # Try to find the user in GitLab
                 users_list = self.gl.users.list(username=username)
                 users = list(users_list)  # Convert RESTObjectList to a regular list
-                if users and len(users) > 0:
-                    user = users[0]
-                    try:
-                        # Check if user is already a member
-                        existing_members = list(group_or_project.members.list())
-                        is_member = any(m.username == username for m in existing_members)
+                assert users is not None, f"User '{username}' not found in GitLab"
+                assert len(users) == 1, f"Multiple users found for username '{username}'"
+                user = users[0]
+                try:
+                    # Check if user is already a member
+                    existing_members = list(group_or_project.members.list())
+                    is_member = any(m.username == username for m in existing_members)
                         
-                        if not is_member:
-                            # Add user as member
-                            group_or_project.members.create({
-                                'user_id': user.id,
-                                'access_level': access_level
-                            })
-                            logger.info(f"Added user '{username}' as {role} to {group_or_project.name}")
-                        else:
-                            logger.info(f"User '{username}' is already a member of {group_or_project.name}")
-                    except gitlab.GitlabCreateError as e:
-                        logger.error(f"Error adding member '{username}': {e}")
-                else:
-                    logger.warning(f"User '{username}' not found in GitLab. Cannot add as member.")
+                    if not is_member:
+                        # Add user as member
+                        group_or_project.members.create({
+                            'user_id': user.id,
+                            'access_level': access_level
+                        })
+                        logger.info(f"Added user '{username}' as {role} to {group_or_project.name}")
+                    else:
+                        logger.info(f"User '{username}' is already a member of {group_or_project.name}")
+                except gitlab.GitlabCreateError as e:
+                    logger.error(f"Error adding member '{username}': {e}")
             except gitlab.GitlabError as e:
                 logger.error(f"Error finding user '{username}': {e}")
         else:
@@ -634,6 +664,16 @@ class GitLabInjector:
         issue_iteration_id = issue_data.get('iteration_id', None)
         issue_weight = issue_data.get('weight', None)
         issue_assignee_ids = issue_data.get('assignee_ids', [])
+        assert issue_id is not None, "Issue ID is missing"
+        assert issue_title is not None, "Issue title is missing"
+        assert issue_desc is not None, "Issue description is missing"
+        assert issue_state is not None, "Issue state is missing"
+        assert issue_labels is not None, "Issue labels are missing"
+        assert issue_parent_epic_id is not None, "Issue parent epic ID is missing"
+        assert issue_milestone_id is not None, "Issue milestone ID is missing"
+        assert issue_iteration_id is not None, "Issue iteration ID is missing"
+        assert issue_weight is not None, "Issue weight is missing"
+        assert issue_assignee_ids is not None, "Issue assignee IDs are missing"
 
         try:
             # Search for existing issue by title
@@ -717,14 +757,14 @@ class GitLabInjector:
                             # Find user by username
                             users_list = self.gl.users.list(username=username)
                             users = list(users_list)  # Convert RESTObjectList to a regular list
-                            if users and len(users) > 0:
-                                user = users[0]
-                                assignee_ids.append(user.id)
-                                logger.info(f"Will assign user '{username}' to issue '{issue_title}'")
-                            else:
-                                logger.warning(f"User '{username}' not found in GitLab. Cannot assign to issue.")
+                            assert users is not None, f"User '{username}' not found in GitLab"
+                            assert len(users) == 1, f"Multiple users found for username '{username}'"
+                            user = users[0]
+                            assignee_ids.append(user.id)
+                            logger.info(f"Will assign user '{username}' to issue '{issue_title}'")
                         except gitlab.GitlabError as e:
                             logger.error(f"Error finding user '{username}': {e}")
+                            logger.warning(f"User '{username}' not found in GitLab. Cannot assign to issue.")
                     else:
                         logger.error(f"User ID '{assignee_id}' not found in user map")
                 
