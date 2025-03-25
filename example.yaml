@@ -4,7 +4,7 @@ users:
   - id: "user2"
     username: "@lmzr"
 groups:
-  - name: "Group 1"
+  - name: "YGroup 1"
     description: "Description of Group 1"
     members:
       - user_id: "user1"
@@ -142,8 +142,9 @@ groups:
                 issues:
                   - id: "deep issue1"
                     title: "Deep Issue 1"
-                    description: "Description of Deep Issue 1
-                    This is an issue very deep in the hierarchy"
+                    description: |
+                      Description of Deep Issue 1  
+                      This is an issue very deep in the hierarchy
                     parent_epic_id: "epic1"
                     milestone_id: "milestone3"
                     iteration_id: "iteration2"
@@ -151,5 +152,5 @@ groups:
                     weight: 2
       - name: "Subgroup 12"
         description: "Description of Subgroup 12"
-  - name: "Group 2"
+  - name: "YGroup 2"
     description: "Description of Group 2"
