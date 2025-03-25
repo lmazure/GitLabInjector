@@ -4,9 +4,7 @@ import sys
 import time
 import os
 import traceback
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
-import json
+from typing import Dict, Optional, Any
 
 import gitlab
 import yaml
@@ -121,6 +119,11 @@ class GitLabInjector:
         assert user_id is not None, "User ID is missing for user"
         assert username is not None, f"Username is missing for user ID '{user_id}'"
         assert username.startswith('@'), f"Username '{username}' is not a valid GitLab username"
+        
+        # check if user ID is already used
+        if user_id in self.user_id_map:
+            logger.error(f"User id='{user_id}' is already mapped to '{self.user_id_map[user_id]}'")
+            return self.user_id_map[user_id]
         
         # Handle special case for @me
         if username == "@me":
@@ -255,6 +258,11 @@ class GitLabInjector:
         assert label_color is not None, "Label color is missing"
         assert label_desc is not None, "Label description is missing"
         
+        # check if label ID is already used
+        if label_id in self.label_name_map:
+            logger.error(f"Label id='{label_id}' is already mapped to '{self.label_name_map[label_id]}'")
+            return self.label_name_map[label_id]
+
         labels_manager = group_or_project.labels
         
         try:
@@ -309,6 +317,11 @@ class GitLabInjector:
         assert iteration_start_date is not None, "Iteration start date is missing"
         assert iteration_due_date is not None, "Iteration due date is missing"
         assert iteration_state is not None, "Iteration state is missing"
+        
+        # check if iteration ID is already used
+        if iteration_id in self.iteration_id_map:
+            logger.error(f"Iteration id='{iteration_id}' is already mapped to '{self.iteration_id_map[iteration_id]}'")
+            return self.iteration_id_map[iteration_id]
         
         try:
             # Search for existing iteration by title
@@ -394,15 +407,18 @@ class GitLabInjector:
         milestone_id = milestone_data.get('id')
         milestone_title = milestone_data.get('title')
         milestone_desc = milestone_data.get('description', '')
-        milestone_start_date = milestone_data.get('start_date')
-        milestone_due_date = milestone_data.get('due_date')
+        milestone_start_date = milestone_data.get('start_date', None)
+        milestone_due_date = milestone_data.get('due_date', None)
         milestone_state = milestone_data.get('state', 'active')
         assert milestone_id is not None, "Milestone ID is missing"
         assert milestone_title is not None, "Milestone title is missing"
         assert milestone_desc is not None, "Milestone description is missing"
-        assert milestone_start_date is not None, "Milestone start date is missing"
-        assert milestone_due_date is not None, "Milestone due date is missing"
         assert milestone_state is not None, "Milestone state is missing"
+        
+        # check if milestone ID is already used
+        if milestone_id in self.milestone_id_map:
+            logger.error(f"Milestone id='{milestone_id}' is already mapped to '{self.milestone_id_map[milestone_id]}'")
+            return self.milestone_id_map[milestone_id]
         
         try:
             # Search for existing milestone by title
@@ -464,7 +480,11 @@ class GitLabInjector:
         assert epic_desc is not None, "Epic description is missing"
         assert epic_state is not None, "Epic state is missing"
         assert epic_labels is not None, "Epic labels are missing"
-        assert epic_epic_parent_id is not None, "Epic parent epic ID is missing"
+        
+        # check if epic ID is already used
+        if epic_id in self.epic_id_map:
+            logger.error(f"Epic id='{epic_id}' is already mapped to '{self.epic_id_map[epic_id]}'")
+            return self.epic_id_map[epic_id]
         
         try:
             # Search for existing epic by title
@@ -669,12 +689,13 @@ class GitLabInjector:
         assert issue_desc is not None, "Issue description is missing"
         assert issue_state is not None, "Issue state is missing"
         assert issue_labels is not None, "Issue labels are missing"
-        assert issue_parent_epic_id is not None, "Issue parent epic ID is missing"
-        assert issue_milestone_id is not None, "Issue milestone ID is missing"
-        assert issue_iteration_id is not None, "Issue iteration ID is missing"
-        assert issue_weight is not None, "Issue weight is missing"
         assert issue_assignee_ids is not None, "Issue assignee IDs are missing"
 
+        # check if issue ID is already used
+        if issue_id in self.issue_id_map:
+            logger.error(f"Issue id='{issue_id}' is already mapped to '{self.issue_id_map[issue_id]}'")
+            return self.issue_id_map[issue_id]
+        
         try:
             # Search for existing issue by title
             existing_issues = list(project.issues.list(search=issue_title))

@@ -10,7 +10,7 @@ groups:
       - user_id: "user1"
         role: "owner"
       - user_id: "user2"
-        role: "maintainer"
+        role: "reporter"
     labels:
       - id: "label1"
         name: "Bug"
@@ -59,7 +59,7 @@ groups:
           - user_id: "user1"
             role: "owner"
           - user_id: "user2"
-            role: "developer"
+            role: "maintainer"
         milestones:
           - id: "milestone2"
             title: "Project Milestone"

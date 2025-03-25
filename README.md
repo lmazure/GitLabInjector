@@ -31,7 +31,8 @@ python gitlab_injector.py --config config.yaml --token YOUR_TOKEN --url https://
 
 The schema of the YAML file is defined in [schema.yaml](./schema.yaml).
 
-The references between entities (e.g., to set a label on an issue) are using `id`s. A referenced entity must always be defined before the referring entity. Otherwise, the reference cannot be created; in this case, a warning `Xxx id='yyy' not found in xxx map` (e.g.,, `Label id='unknown' not found in label map`) is logged.
+The references between entities (e.g., to set a label on an issue) are using `id`s. A referenced entity must always be defined before the referring entity. Otherwise, the reference cannot be created; in this case, a warning `Xxx id='yyy' not found in xxx map` (e.g., `Label id='unknown' not found in label map`) is logged.  
+If an `id` is used twice (i.e. used for two different entities), the second definition will be ignored, an error `Xxx id='{id}' is already mapped to '{GitLab ID}'` (e.g., `Milestone id='milestone2' is already mapped to '5948769'`) will be logged.
 
 [example.yaml](./example.yaml) is a sample file.
 
