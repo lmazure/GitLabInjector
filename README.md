@@ -12,6 +12,13 @@ This script reads a YAML file defining a GitLab group structure and injects the 
 
 It could be useful to persons needing some data in GitLab in order to test their integration with this one.
 
+## Prerequisites
+
+Install the required Python packages:
+```bash
+pip install -r requirements.txt
+```
+
 ## Usage
 
 ```bash

@@ -2,7 +2,7 @@ users:
   - id: "user1"
     username: "@me"
   - id: "user2"
-    username: "@lmzr"
+    username: "@__another_user__"
 groups:
   - name: "YGroup 1"
     description: "Description of Group 1"
